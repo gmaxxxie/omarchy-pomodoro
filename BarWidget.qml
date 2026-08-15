@@ -120,12 +120,29 @@ BarWidget {
     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
     // Idle: tomato only, dimmed, on the transparent bar (no background).
     // Running/paused: countdown ring + remaining time.
-    text: ""
+    //
+    // WidgetButton's own `visible` is `hasVisualContent || keepSpace` where
+    // hasVisualContent = text !== "", so text must carry the visible content
+    // or the whole button (and our Row inside it) hides. The Row below draws
+    // the ring; this text supplies the content signal and the running time.
+    text: root.timerService && !root.timerService.stopped
+      ? (root.timerService.paused
+          ? root.timerService.remainingText + " ⏸"
+          : root.timerService.remainingText)
+      : "🍅"
+    // The label text above only serves as the content signal (visible =
+    // hasVisualContent || keepSpace); the Row below paints ring + time, so
+    // the built-in label must not double-draw the time.
+    labelVisible: false
+    foreground: root.stateColor
     horizontalMargin: 6.5
     tooltipText: root.timerService
       ? root.phaseText + " · " + root.timerService.remainingText +
         " · " + root.timerService.completedPomodoros + " pomodoros done"
       : "Pomodoro"
+    opacity: root.timerService && root.timerService.stopped
+      ? 0.6
+      : (root.timerService && root.timerService.paused ? 0.85 : 1.0)
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
@@ -138,12 +155,12 @@ BarWidget {
     }
 
     // Content: a Row that switches between idle (emoji only) and running
-    // (ring + time). WidgetButton's own label is empty; we draw here.
+    // (ring + time). WidgetButton's own label stays empty-ish so the ring
+    // and time render once; the label text above is only the content signal.
     Row {
       id: content
       anchors.fill: parent
       spacing: Style.space(6)
-      visible: true
 
       // Idle: just the tomato, dimmed.
       Text {
