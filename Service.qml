@@ -75,9 +75,8 @@ Item {
       aiLinked = values.aiLinked
       // Re-enabling the link must not resurrect a phase whose session is
       // gone: when turning the link back on, forget the ownership of any
-      // phase started or paused by the link while it was off.
+      // phase paused by the link while it was off.
       if (turningOn) {
-        lastAiStartedSessionPath = ""
         aiPausedPath = ""
       }
     }
@@ -126,7 +125,6 @@ Item {
     else setState(TimerModel.stoppedState(config, now), true)
     // Manual start/stop: the timer is under explicit user control again —
     // it must not auto-start/resume on the next AI probe.
-    lastAiStartedSessionPath = ""
     aiPausedPath = ""
     lastTickMs = now
   }
@@ -136,10 +134,9 @@ Item {
     if (!initialized || stopped) return
     var now = Date.now()
     setState(TimerModel.stoppedState(config, now), true)
-    // Clearing the ownership marks the work phase as user-stopped: the AI
+    // Clearing the paused-path marks the work phase as user-stopped: the AI
     // link must not auto-start it again just because the same session is
     // still writing.
-    lastAiStartedSessionPath = ""
     aiPausedPath = ""
     lastTickMs = now
   }
@@ -162,24 +159,29 @@ Item {
 
   // ---- AI activity detection -------------------------------------------
   //
-  // "AI is working" = a known AI tool wrote to its session log within the
-  // last `aiActiveWindowSec` seconds. Detected tools:
+  // "AI is working" = a known AI tool is ALIVE as a process AND its session
+  // log was written within the last `aiActiveWindowSec` seconds. Detected
+  // tools:
   //   - pi / opencode: ~/.pi/agent/sessions/**/*.jsonl
   //   - codex:         ~/.codex/sessions/**/*.jsonl
   //   - claude:        ~/.claude/projects/**/session.jsonl (if present)
   //
-  // The probe prints the *full path* of the newest recently-written file
-  // ("<mtime> <path>"), not just its name. The full path is the session
-  // fingerprint: when an AI tool exits, its session file stops being
-  // written, so a STALE fingerprint (aiLastSeenPath keeps pointing at it)
-  // is the reliable "AI stopped" signal — unlike mtime alone, which is
-  // fooled by any unrelated write landing inside a session directory
-  // (background tasks, other working directories, one-off claude runs).
+  // Two signals, one fast and one safe:
+  //  - alive: the tool process is still running (pgrep). When a session
+  //    genuinely ends, the process exits and `aiAlive` flips false within
+  //    one probe tick (~2s), so the work phase pauses quickly (~5s).
+  //  - fresh: the session file is recent. pi writes session logs
+  //    intermittently — measured gaps of 50s+ mid-think are normal — so a
+  //    short write window would pause a working AI constantly. 60s of
+  //    silence is the fallback for tools whose process we cannot name.
   //
-  // Window stays at 60s because pi writes session logs intermittently
-  // (measured gaps of 50s+ mid-think are normal).
-  readonly property int aiActiveWindowSec: 60  // 1 min of quiet = idle
-  property bool aiActive: false
+  // A process can be alive yet idle for a long time (idle agent waiting for
+  // a message): the fresh-write signal keeps the robot honest in that case.
+  // The probe prints the *full path* of the newest recently-written file
+  // ("<mtime> <path>"), plus a process-alive check, in one bash call.
+  readonly property int aiActiveWindowSec: 60  // fallback: 1 min of quiet
+  property bool aiAlive: false          // any known AI process is running
+  property bool aiActive: false         // alive && wrote within the window
   property string aiTool: ""            // which tool was seen active
   property string aiLastSeenPath: ""    // full path of the last active file
   property double aiLastSeenMs: 0        // when activity was last detected
@@ -198,12 +200,21 @@ Item {
 
   function probeAi() {
     if (aiProbeRunning) return
-    // Print the newest recently-written session file as "<mtime> <path>".
-    // Sorting the mtimes in-process (`sort -rn | head -1`) keeps the whole
-    // session directory as the universe, so the newest file across all
-    // tools wins deterministically.
+    // Two signals in one bash call:
+    //  1. alive: `pgrep -x` for each known tool name. The process name is
+    //     the reliable "AI running" signal — a tool that exits flips this
+    //     off within one probe tick (~2s), so the work phase pauses fast.
+    //  2. fresh: the newest recently-written session file, as
+    //     "<mtime> <path>". Sorting the mtimes in-process
+    //     (`sort -rn | head -1`) keeps the whole session directory as the
+    //     universe, so the newest file across all tools wins
+    //     deterministically. The full path is the session fingerprint used
+    //     for auto-resume/auto-stop decisions.
     var cutoffSec = Math.floor(Date.now() / 1000) - aiActiveWindowSec
     var args = ["bash", "-c",
+      "alive=0\n" +
+      "for n in pi opencode codex claude; do pgrep -x \"$n\" >/dev/null 2>&1 && alive=1 && break; done\n" +
+      "printf 'ALIVE=%s\\n' \"$alive\"\n" +
       "for d; do \n" +
       "  [ -d \"$d\" ] || continue\n" +
       "  f=$(find \"$d\" -type f -newermt \"@" + cutoffSec + "\" \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -1)\n" +
@@ -228,14 +239,28 @@ Item {
 
   // `onStreamFinished` fires when the process ends and all stdout has been
   // read, so the stdout content is complete here. The probe prints
-  // "<mtime> <path>" for the newest fresh file (or nothing).
+  // "ALIVE=<0|1>\n<mtime> <path>" (the <mtime> <path> part only when a
+  // fresh file exists).
   function onAiProbeResult(raw) {
-    var trimmed = String(raw || "").replace(/\s+$/, "")
-    if (trimmed !== "") {
+    var text = String(raw || "")
+    var trimmed = text.replace(/\s+$/, "")
+    var alive = /(?:^|\n)ALIVE=1(?:\n|$)/.test(text)
+    aiAlive = alive
+    // "ALIVE=<n>\n<mtime> <path>" — the file line is the LAST line, and
+    // only counts when it is a real file entry (not the ALIVE marker
+    // itself). When no session file was fresh, the output is just
+    // "ALIVE=<n>", which must NOT be mistaken for a file (otherwise a
+    // running pi with no fresh writes would auto-start the timer).
+    var parts = trimmed.split(/\n/)
+    var fileLine = parts.length > 1 ? parts[parts.length - 1] : ""
+    var path = ""
+    if (fileLine !== "" && fileLine.indexOf("ALIVE=") !== 0) {
       // "<mtime> <path>" — the mtime is decorative, the path is the
       // fingerprint.
-      var space = trimmed.indexOf(" ")
-      var path = space > 0 ? trimmed.substring(space + 1) : trimmed
+      var space = fileLine.indexOf(" ")
+      path = space > 0 ? fileLine.substring(space + 1) : fileLine
+    }
+    if (path !== "") {
       var stale = aiLastSeenPath !== "" && aiLastSeenPath !== path
       aiActive = true
       aiTool = aiToolName(path)
@@ -249,13 +274,24 @@ Item {
       // forever ("timer keeps running after AI stopped").
       if (stale) {
         aiPausedPath = ""
-        lastAiStartedSessionPath = ""
       }
       maybeAutoStart()
     } else {
       aiActive = false
       aiTool = ""
     }
+  }
+
+  // Fast "AI stopped" signal: the tool process that was writing the session
+  // is no longer alive. aiAlive flips false within one probe tick (~2s) of
+  // the process exiting, so the work phase pauses within ~5s instead of
+  // waiting out the 60s write window. When the process is alive but just
+  // quiet, this stays true and the write window remains the fallback.
+  function aiProcessStopped() {
+    if (!aiAlive) return true
+    // The process we last saw could be a different one than the tool that
+    // owns the current work phase; the write window still applies.
+    return false
   }
 
   // Map a session file path back to the tool name shown in the UI. The
@@ -272,22 +308,17 @@ Item {
   //
   // When enabled, the work phase follows AI activity:
   //   - idle + AI working      -> auto-start a work phase
-  //   - running work + AI idle -> auto-pause (AI quiet > aiActiveWindowSec)
-  //   - AI-paused work + AI working again -> auto-resume
+  //   - running work + AI process gone -> auto-pause within ~5s
+  //   - running work + AI quiet for the window -> auto-pause (fallback)
+  //   - AI-paused work + same session working again -> auto-resume
   // Pauses caused by the AI link are marked (pausedByAiLink) so they can
   // auto-resume; manual pauses stay paused until you resume.
   //
   // The link only *follows* the timer: it never stops it when disabled. A
-  // session the link started is remembered (lastAiStartedSessionPath) so a
-  // manual Stop clears it; a session change (see onAiProbeResult) clears
-  // it too, so an old session can never keep the timer alive forever.
+  // session change (see onAiProbeResult) clears the paused-path, so an old
+  // session can never keep the timer alive forever.
   // Controlled by the "AI link" toggle in the panel (settings.aiLinked).
   property bool aiLinked: true
-
-  // Full path of the session that auto-started the current work phase.
-  // Used to tell "the AI session that owns the current pomodoro" apart
-  // from "some other AI session that happens to be alive".
-  property string lastAiStartedSessionPath: ""
 
   // Full path of the session we auto-paused FOR (the work phase runs while
   // that session is active). Auto-resume only happens for the same session;
@@ -298,7 +329,20 @@ Item {
   function handleAiLink() {
     if (!aiLinked) return false
 
-    // AI idle for longer than the window -> pause a running work phase.
+    // Fast path: the AI process we were following exited (or the whole
+    // tool is gone) -> the session is over, pause the work phase right
+    // away instead of waiting out the write window. This is the "AI
+    // stopped -> timer pauses within seconds" behaviour.
+    if (running && phase === TimerModel.PhaseWork && aiProcessStopped()) {
+      if (aiLastSeenMs > 0 && Date.now() - aiLastSeenMs > 2500) {
+        setState(TimerModel.pauseForAiIdle(timerState, Date.now()), true)
+        aiPausedPath = aiLastSeenPath
+        return true
+      }
+    }
+
+    // Fallback: the process is alive but went quiet for the full write
+    // window (idle agent waiting for input) -> pause a running work phase.
     if (running && phase === TimerModel.PhaseWork && !aiActive) {
       // Only pause once the quiet window has actually passed AND we have
       // seen AI activity at least once. aiLastSeenMs starts at 0 (never
@@ -323,9 +367,6 @@ Item {
       var now = Date.now()
       setState(TimerModel.startNewCycle(config, now), true)
       lastTickMs = now
-      // The session we auto-started the cycle for; a manual Stop or a
-      // session change clears it.
-      lastAiStartedSessionPath = aiLastSeenPath
       return
     }
     // A work phase that the AI link auto-paused (AI went idle) resumes
