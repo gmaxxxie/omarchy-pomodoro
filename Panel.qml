@@ -57,8 +57,22 @@ Panel {
     selectedAction = ((selectedAction + delta) % 4 + 4) % 4
   }
 
+  // Enter (and Space via PanelKeyCatcher's activateRequested) run the
+  // selected action. PanelKeyCatcher fires returnRequested ONLY on Enter,
+  // so a flag tells us whether the activation came from Enter.
+  // Space alone (no Enter) is treated as pause/resume — the most common
+  // shortcut — instead of running the selected action.
+  property bool enterArmed: false
+
   function activateSelected() {
     if (!canStart) return
+    // Space (no Enter): pause/resume regardless of selection.
+    if (!root.enterArmed) {
+      root.enterArmed = false
+      if (canControl) timerService.togglePause()
+      return
+    }
+    root.enterArmed = false
     if (selectedAction === 0) timerService.playOrStop()
     else if (selectedAction === 1 && canControl) timerService.togglePause()
     else if (selectedAction === 2 && canControl) timerService.skip()
@@ -96,11 +110,14 @@ Panel {
         else if (dy !== 0) root.selectAction(dy)
       }
       onActivateRequested: root.activateSelected()
+      // Enter fires returnRequested before activateRequested — arm the flag
+      // so the activation is treated as Enter (run selection), not Space.
+      onReturnRequested: root.enterArmed = true
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "s" || t === "S") root.timerService.skip()
-        else if (t === " " || t === "p" || t === "P") root.timerService.togglePause()
+        else if (t === "p" || t === "P") root.timerService.togglePause()
       }
 
       Column {
@@ -204,7 +221,7 @@ Panel {
           PomodoroActionRow {
             iconText: ""
             labelText: "Pause"
-            hintText: "Space / P"
+            hintText: "Space"
             foregroundColor: root.foreground
             accentColor: root.activeColor
             fontFamily: root.fontFamily
