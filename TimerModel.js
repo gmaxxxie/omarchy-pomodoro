@@ -45,7 +45,7 @@ function isStatus(value) {
 
 function phaseLabel(phase) {
   if (phase === PhaseShortBreak) return "Short Break"
-  if ( phase === PhaseLongBreak) return "Long Break"
+  if (phase === PhaseLongBreak) return "Long Break"
   return "Work"
 }
 

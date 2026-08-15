@@ -82,7 +82,6 @@ Item {
   function initializeIfReady() {
     if (initialized || !configReady || !stateFileLoaded) return
 
-
     var restored = null
     if (String(loadedStateText || "").trim() !== "") {
       try {
@@ -204,12 +203,19 @@ Item {
   }
 
   function playSound() {
-    // The sound files are resolved with a tiny shell test rather than an FS
-    // API — Quickshell has no File.exists, and plugins avoid extra deps.
-    soundCheckProcess.command = ["bash", "-c",
-      "for f in " + soundFiles.join(" ") + "; do test -f \"$f\" && { echo \"$f\"; exit 0; }; done; exit 1"]
+    // Find the first existing sound file. Quickshell has no File.exists, so
+    // probe with `test -f`; passing each path as a separate argv element
+    // avoids shell-quoting pitfalls.
+    soundCheckArgs = [
+      "bash", "-c",
+      "for f; do test -f \"$f\" && { printf '%s' \"$f\"; exit 0; }; done; exit 1",
+      "--"
+    ].concat(soundFiles)
+    soundCheckProcess.command = soundCheckArgs
     soundCheckProcess.running = true
   }
+
+  property var soundCheckArgs: []
 
   Process {
     id: soundCheckProcess

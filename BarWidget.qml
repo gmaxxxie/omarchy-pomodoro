@@ -24,7 +24,6 @@ BarWidget {
   // cannot track status changes through it. A refresh timer below re-checks
   // status every second so the icon switches stopped<->running correctly.
   property var timerService: null
-  property var svcStatus: ""
   property bool svcStopped: true
   property var svcPaused: false
   property string svcPhase: "work"
@@ -82,7 +81,6 @@ BarWidget {
   // trigger QML bindings through the serviceFor() function-call boundary.
   function refreshFromService() {
     if (!timerService) return
-    svcStatus = timerService.status
     svcStopped = timerService.stopped
     svcPaused = timerService.paused
     svcPhase = timerService.phase
@@ -153,9 +151,7 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-    // Idle: monochrome tomato drawn in the bar's icon color (white on the
-    // default theme) — matches every other bar icon. Running/paused:
-    // countdown ring only (no time text).
+    // Idle: the 🍅 emoji; running/paused: countdown ring (no time text).
     //
     // WidgetButton's own `visible` is `hasVisualContent || keepSpace` where
     // hasVisualContent = text !== "", so text must carry the visible content

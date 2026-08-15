@@ -2,11 +2,16 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 
-// Popup panel for the Pomodoro timer: a big phase emoji with the remaining
+// Popup panel for the Pomodoro timer: a countdown ring with the remaining
 // time and phase label, a completed-pomodoro counter, and four action rows.
 // The rows mirror the original waybar mouse bindings (left toggle, right
 // stop, middle skip) as explicit, discoverable buttons, and support full
 // keyboard navigation through the shared PanelKeyCatcher.
+//
+// NOTE: like BarWidget, status is pulled from the service into plain svc*
+// properties every second. The service lives behind a function-call boundary
+// (bar.shell.serviceFor) that QML cannot track through, so direct bindings to
+// timerService.stopped/progress would go stale.
 Panel {
   id: root
   moduleName: "io.github.punkpeye.waybar-pomodoro"
@@ -17,21 +22,31 @@ Panel {
   property var timerService: null
   readonly property var barIdentity: hostWidget || root
 
+  // Mirrors of the service state, refreshed by the timer below.
+  property bool svcStopped: true
+  property var svcPaused: false
+  property string svcPhase: "work"
+  property string svcRemaining: "25:00"
+  property real svcProgress: 0
+  property int svcCompleted: 0
+  property string svcPhaseLabel: "Work"
+  property bool svcInitialized: false
+
   readonly property color foreground: Color.popups.text
   readonly property color activeColor: Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   property int selectedAction: 0
   property bool cursorActive: true
 
-  readonly property bool canStart: !!timerService && timerService.initialized
-  readonly property bool canControl: canStart && !timerService.stopped
+  readonly property bool canStart: svcInitialized
+  readonly property bool canControl: canStart && !svcStopped
 
-  readonly property string phaseIcon: {
-    if (!timerService || timerService.stopped) return "🍅"
-    if (timerService.phase === "shortBreak") return "☕"
-    if (timerService.phase === "longBreak") return "🌴"
-    return "🍅"
-  }
+  // Enter (and Space via PanelKeyCatcher's activateRequested) run the
+  // selected action. PanelKeyCatcher fires returnRequested ONLY on Enter,
+  // so a flag tells us whether the activation came from Enter.
+  // Space alone (no Enter) is treated as pause/resume — the most common
+  // shortcut — instead of running the selected action.
+  property bool enterArmed: false
 
   function open() {
     selectedAction = 0
@@ -48,6 +63,21 @@ Panel {
     else open()
   }
 
+  // Pull the current status into plain properties so the UI rebinds. Same
+  // reason as BarWidget: service properties don't propagate through the
+  // serviceFor() function-call boundary.
+  function refreshFromService() {
+    if (!timerService) return
+    svcStopped = timerService.stopped
+    svcPaused = timerService.paused
+    svcPhase = timerService.phase
+    svcRemaining = timerService.remainingText
+    svcProgress = timerService.progress
+    svcCompleted = timerService.completedPomodoros
+    svcPhaseLabel = timerService.phaseLabel
+    svcInitialized = timerService.initialized
+  }
+
   function selectAction(delta) {
     cursorActive = true
     if (!canControl) {
@@ -56,13 +86,6 @@ Panel {
     }
     selectedAction = ((selectedAction + delta) % 4 + 4) % 4
   }
-
-  // Enter (and Space via PanelKeyCatcher's activateRequested) run the
-  // selected action. PanelKeyCatcher fires returnRequested ONLY on Enter,
-  // so a flag tells us whether the activation came from Enter.
-  // Space alone (no Enter) is treated as pause/resume — the most common
-  // shortcut — instead of running the selected action.
-  property bool enterArmed: false
 
   function activateSelected() {
     if (!canStart) return
@@ -89,6 +112,15 @@ Panel {
     if (bar && typeof bar.switchPanelFrom === "function")
       return bar.switchPanelFrom(barIdentity, direction)
     return false
+  }
+
+  // Poll the service while the panel is open, exactly like BarWidget.
+  Timer {
+    interval: 1000
+    running: root.opened && root.timerService !== null
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refreshFromService()
   }
 
   KeyboardPanel {
@@ -138,7 +170,7 @@ Panel {
             anchors.centerIn: parent
             width: Math.min(parent.width, Style.space(130))
             height: width
-            progress: root.timerService ? root.timerService.progress : 0
+            progress: root.svcProgress
             trackColor: Color.muted
             fillColor: root.activeColor
             strokeWidth: Math.max(5, Style.spaceReal(6))
@@ -150,8 +182,8 @@ Panel {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: root.timerService && !root.timerService.stopped
-                ? root.timerService.remainingText
+              text: !root.svcStopped
+                ? root.svcRemaining
                 : "🍅"
               color: root.foreground
               font.family: root.fontFamily
@@ -161,8 +193,8 @@ Panel {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: root.timerService && !root.timerService.stopped
-                ? root.timerService.phaseLabel
+              text: !root.svcStopped
+                ? root.svcPhaseLabel
                 : "Click to start"
               color: root.activeColor
               font.family: root.fontFamily
@@ -186,8 +218,8 @@ Panel {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
           visible: root.canStart
-          text: root.timerService && root.timerService.completedPomodoros > 0
-            ? "🍅".repeat(root.timerService.completedPomodoros)
+          text: root.svcCompleted > 0
+            ? "🍅".repeat(root.svcCompleted)
             : ""
           color: root.foreground
           font.family: root.fontFamily
@@ -225,7 +257,7 @@ Panel {
             foregroundColor: root.foreground
             accentColor: root.activeColor
             fontFamily: root.fontFamily
-            enabled: root.canControl && !root.timerService.paused
+            enabled: root.canControl && !root.svcPaused
             hasCursor: root.cursorActive && root.selectedAction === 1
             onHovered: function(value) { root.actionHovered(1, value) }
             onClicked: { if (root.canControl) root.timerService.togglePause() }

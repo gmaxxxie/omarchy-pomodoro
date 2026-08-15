@@ -13,69 +13,72 @@ original waybar custom-module app.
 - 🍅 **25 / 5 / 15** Pomodoro technique — work, short break, long break after
   every 4 completed pomodoros
 - ⏸️ Pause / resume
-- ⏭️ Skip phase (and right-click = stop, middle-click = skip, from the bar)
+- ⏭️ Skip phase (right-click = stop, middle-click = skip, from the bar)
 - 🔔 Phase-change notifications with sound
 - 🎨 Phase-colored ring in the bar (work = red, short break = green, long
-  break = blue, paused = amber) — tinted through the theme so it follows your
-  accent instead of hardcoded hex
+  break = blue, paused = amber) — tinted through the theme
 - 💾 State persisted across shell restarts
 - 😴 Sleep-safe: after a suspend/resume a running work phase is reset, a
-  running break keeps its remaining time (same behaviour as the old systemd
-  sleep/lid hooks)
+  running break keeps its remaining time
 
 ## Install
-
-From a checkout of this repository:
-
-```bash
-./install.sh
-```
-
-Or, once published, like any Omarchy plugin:
 
 ```sh
 omarchy plugin add https://github.com/punkpeye/waybar-pomodoro.git --enable
 ```
 
-## Use
+Or, from a local checkout:
 
-Click the tomato in the bar to open the timer panel.
+```bash
+./install.sh
+```
+
+## Usage
+
+Click the tomato in the bar to open the timer panel. Click the tomato inside
+the panel to start (idle), or press Enter on the Start row.
 
 | Action | Bar mouse | Panel button | Keyboard |
 |--------|-----------|--------------|----------|
-| Start / Resume / Stop | Left click (toggle) | ▶ / ■ | Enter / Space |
-| Pause / Resume | Left click (toggle) | ⏸ | Space / P |
+| Start / Stop | Left click (open panel) · Right click (stop) | ▶ / ■ | Enter on the row |
+| Pause / Resume | — | ⏸ | Space |
 | Skip phase | Middle click | ⏭ | S |
-| Stop | Right click | ■ | Enter |
 
 ## Configure
 
-Change the phase lengths and long-break frequency through Omarchy (the
-widget's own config UI exposes the same fields):
+Change the phase lengths and long-break frequency through the widget's config
+UI, or with Omarchy:
 
-```bash
-omarchy bar plugin set io.github.punkpeye.waybar-pomodoro workMinutes 25 --json
-omarchy bar plugin set io.github.punkpeye.waybar-pomodoro shortBreakMinutes 5 --json
-omarchy bar plugin set io.github.punkpeye.waybar-pomodoro longBreakMinutes 15 --json
-omarchy bar plugin set io.github.punkpeye.waybar-pomodoro pomodorosUntilLong 4 --json
+```sh
+omarchy bar set io.github.punkpeye.waybar-pomodoro workMinutes 25
+omarchy bar set io.github.punkpeye.waybar-pomodoro shortBreakMinutes 5
+omarchy bar set io.github.punkpeye.waybar-pomodoro longBreakMinutes 15
+omarchy bar set io.github.punkpeye.waybar-pomodoro pomodorosUntilLong 4
 ```
 
 New values apply from the next phase onward.
 
 ## Keyboard controls
 
-With the panel open: arrows / `h` `j` `k` `l` move between actions, Enter or
-Space activates, `s` skips, Escape closes, Tab moves to the next bar panel.
+With the panel open: arrows / `h` `j` `k` `l` move between actions, Enter
+activates the selected row, **Space pauses/resumes**, `s` skips, Escape
+closes, Tab moves to the next bar panel.
 
 You can also control it from a terminal or keybinding:
 
-```bash
+```sh
 omarchy-shell shell toggle io.github.punkpeye.waybar-pomodoro
+```
+
+## Move
+
+```sh
+omarchy bar move io.github.punkpeye.waybar-pomodoro --section left
 ```
 
 ## Remove
 
-```bash
+```sh
 omarchy plugin remove io.github.punkpeye.waybar-pomodoro
 ```
 
