@@ -128,4 +128,37 @@ const resumeManual = model.resume(manualPaused, 60000)
 assert.equal(resumeManual.status, "running")
 assert.equal(resumeManual.pausedByAiLink, undefined)
 
+// ---- resolveActiveSession: the newest file wins across tools -----------
+// No entries -> nothing active.
+const none = model.resolveActiveSession([], "")
+assert.equal(none.path, "")
+assert.equal(none.changed, false)
+
+// A single fresh entry is active, never "changed" (no previous session).
+const first = model.resolveActiveSession(
+  [{ path: "/home/u/.pi/agent/sessions/A/a.jsonl", mtimeSec: 100 }], "")
+assert.equal(first.path, "/home/u/.pi/agent/sessions/A/a.jsonl")
+assert.equal(first.changed, false, "first sighting is not a session change")
+
+// Same session keeps reporting -> not changed (the session is still alive).
+const same = model.resolveActiveSession(
+  [{ path: "/home/u/.pi/agent/sessions/A/a.jsonl", mtimeSec: 200 }],
+  "/home/u/.pi/agent/sessions/A/a.jsonl")
+assert.equal(same.path, "/home/u/.pi/agent/sessions/A/a.jsonl")
+assert.equal(same.changed, false, "same session is not a change")
+
+// Newest mtime across multiple trees wins.
+const multi = model.resolveActiveSession([
+  { path: "/home/u/.pi/agent/sessions/A/a.jsonl", mtimeSec: 100 },
+  { path: "/home/u/.codex/sessions/B/b.jsonl", mtimeSec: 300 },
+  { path: "/home/u/.claude/projects/C/c.jsonl", mtimeSec: 200 }
+], "/home/u/.pi/agent/sessions/A/a.jsonl")
+assert.equal(multi.path, "/home/u/.codex/sessions/B/b.jsonl")
+assert.equal(multi.changed, true, "a different, newer session replaces the old one")
+
+// Junk entries (no path/mtime) are ignored.
+const junk = model.resolveActiveSession(
+  [{ foo: 1 }, null, { path: "/x/y.jsonl", mtimeSec: 50 }], "")
+assert.equal(junk.path, "/x/y.jsonl")
+
 console.log("timer-model tests passed")

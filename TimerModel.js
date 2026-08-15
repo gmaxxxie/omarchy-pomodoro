@@ -220,6 +220,34 @@ function recoverInterrupted(state, config, nowMs) {
   return { state: nextWork, notifyPhase: PhaseWork }
 }
 
+// Decide which session is the "active one" across the three tool trees.
+// The active session is the one with the newest mtime, and it stays the
+// active session as long as its file keeps being written. Returns
+// { path, changed } where changed is true when a different session
+// replaced the previous one (previousSessionPath !== "" and != path).
+// This is the ground truth for "AI stopped": when the previously active
+// session's file goes stale (no longer in `latest`), the session is over
+// even if some unrelated file was written elsewhere in the tree.
+function resolveActiveSession(latest, previousSessionPath) {
+  var entries = Array.isArray(latest) ? latest : []
+  var bestPath = ""
+  var bestMtime = -1
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i]
+    if (!entry || typeof entry !== "object") continue
+    var p = String(entry.path || "")
+    var m = finiteNumber(entry.mtimeSec, -1)
+    if (p === "" || m < 0) continue
+    if (m > bestMtime || (m === bestMtime && p > bestPath)) {
+      bestMtime = m
+      bestPath = p
+    }
+  }
+  var prev = String(previousSessionPath || "")
+  var changed = prev !== "" && bestPath !== "" && bestPath !== prev
+  return { path: bestPath, changed: changed }
+}
+
 function sanitizeState(raw, config, nowMs) {
   var now = finiteNumber(nowMs, 0)
   if (!raw || Number(raw.version) !== StateVersion || !isStatus(raw.status) || !isPhase(raw.phase))

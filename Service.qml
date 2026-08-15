@@ -70,7 +70,17 @@ Item {
   function configure(settings) {
     var values = settings || {}
     // AI-link toggle lives in the widget's shell.json entry.
-    if (typeof values.aiLinked === "boolean") aiLinked = values.aiLinked
+    if (typeof values.aiLinked === "boolean") {
+      var turningOn = values.aiLinked && !aiLinked
+      aiLinked = values.aiLinked
+      // Re-enabling the link must not resurrect a phase whose session is
+      // gone: when turning the link back on, forget the ownership of any
+      // phase started or paused by the link while it was off.
+      if (turningOn) {
+        lastAiStartedSessionPath = ""
+        aiPausedPath = ""
+      }
+    }
 
     var next = TimerModel.normalizeConfig(values)
     if (JSON.stringify(next) !== JSON.stringify(config)) {
@@ -114,6 +124,10 @@ Item {
     var now = Date.now()
     if (stopped) setState(TimerModel.startNewCycle(config, now), true)
     else setState(TimerModel.stoppedState(config, now), true)
+    // Manual start/stop: the timer is under explicit user control again —
+    // it must not auto-start/resume on the next AI probe.
+    lastAiStartedSessionPath = ""
+    aiPausedPath = ""
     lastTickMs = now
   }
 
@@ -122,6 +136,11 @@ Item {
     if (!initialized || stopped) return
     var now = Date.now()
     setState(TimerModel.stoppedState(config, now), true)
+    // Clearing the ownership marks the work phase as user-stopped: the AI
+    // link must not auto-start it again just because the same session is
+    // still writing.
+    lastAiStartedSessionPath = ""
+    aiPausedPath = ""
     lastTickMs = now
   }
 
@@ -144,23 +163,26 @@ Item {
   // ---- AI activity detection -------------------------------------------
   //
   // "AI is working" = a known AI tool wrote to its session log within the
-  // last `aiActiveWindowSec` seconds. The bar widget shows a robot glyph
-  // when active, and (optionally) the work phase only counts time while AI
-  // is working. Detected tools:
+  // last `aiActiveWindowSec` seconds. Detected tools:
   //   - pi / opencode: ~/.pi/agent/sessions/**/*.jsonl
   //   - codex:         ~/.codex/sessions/**/*.jsonl
   //   - claude:        ~/.claude/projects/**/session.jsonl (if present)
-  // The probe is a single `find` that prints the newest mtime; exit 0 with
-  // a recent file means active. `aiActiveWindowSec` is BOTH the probe's
-  // freshness window and the quiet window that auto-pauses the work phase.
-  // Window stays at 60s (pi writes session logs intermittently — gaps of
-  // 30s+ mid-think are normal), while the probe itself runs every
-  // `aiProbeIntervalSec` so the robot appears within a couple of seconds of
-  // AI starting to work.
+  //
+  // The probe prints the *full path* of the newest recently-written file
+  // ("<mtime> <path>"), not just its name. The full path is the session
+  // fingerprint: when an AI tool exits, its session file stops being
+  // written, so a STALE fingerprint (aiLastSeenPath keeps pointing at it)
+  // is the reliable "AI stopped" signal — unlike mtime alone, which is
+  // fooled by any unrelated write landing inside a session directory
+  // (background tasks, other working directories, one-off claude runs).
+  //
+  // Window stays at 60s because pi writes session logs intermittently
+  // (measured gaps of 50s+ mid-think are normal).
   readonly property int aiActiveWindowSec: 60  // 1 min of quiet = idle
   property bool aiActive: false
-  property string aiTool: ""          // which tool was seen active
-  property double aiLastSeenMs: 0      // when activity was last detected
+  property string aiTool: ""            // which tool was seen active
+  property string aiLastSeenPath: ""    // full path of the last active file
+  property double aiLastSeenMs: 0        // when activity was last detected
   property bool aiProbeRunning: false
 
   // Probe frequency: find the newest write every `aiProbeIntervalSec`.
@@ -176,16 +198,15 @@ Item {
 
   function probeAi() {
     if (aiProbeRunning) return
-    // Probe each session dir: if any *.jsonl/*.json was modified within
-    // the last `aiActiveWindowSec` seconds, that AI tool is actively
-    // working. find -mmin only has minute granularity, so the freshness
-    // cutoff is passed as an epoch with -newermt for true second-level
-    // windows.
+    // Print the newest recently-written session file as "<mtime> <path>".
+    // Sorting the mtimes in-process (`sort -rn | head -1`) keeps the whole
+    // session directory as the universe, so the newest file across all
+    // tools wins deterministically.
     var cutoffSec = Math.floor(Date.now() / 1000) - aiActiveWindowSec
     var args = ["bash", "-c",
       "for d; do \n" +
       "  [ -d \"$d\" ] || continue\n" +
-      "  f=$(find \"$d\" -type f -newermt \"@" + cutoffSec + "\" \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%f\\n' 2>/dev/null | head -1)\n" +
+      "  f=$(find \"$d\" -type f -newermt \"@" + cutoffSec + "\" \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -1)\n" +
       "  [ -n \"$f\" ] && { printf '%s' \"$f\"; exit 0; }\n" +
       "done\n" +
       "exit 1", "--"].concat(aiSessionDirs)
@@ -205,17 +226,46 @@ Item {
     onExited: root.aiProbeRunning = false
   }
 
-  function onAiProbeResult(name) {
-    var trimmed = String(name || "").replace(/\s+$/, "")
+  // `onStreamFinished` fires when the process ends and all stdout has been
+  // read, so the stdout content is complete here. The probe prints
+  // "<mtime> <path>" for the newest fresh file (or nothing).
+  function onAiProbeResult(raw) {
+    var trimmed = String(raw || "").replace(/\s+$/, "")
     if (trimmed !== "") {
+      // "<mtime> <path>" — the mtime is decorative, the path is the
+      // fingerprint.
+      var space = trimmed.indexOf(" ")
+      var path = space > 0 ? trimmed.substring(space + 1) : trimmed
+      var stale = aiLastSeenPath !== "" && aiLastSeenPath !== path
       aiActive = true
-      aiTool = trimmed
+      aiTool = aiToolName(path)
+      aiLastSeenPath = path
       aiLastSeenMs = Date.now()
+      // A DIFFERENT session than the one we were following means the
+      // previous AI session genuinely ended and a new one started: do not
+      // auto-resume the old one, and if the timer is idle let the new
+      // session start fresh. The old session's file is still fresh within
+      // the window, so without this check the timer would keep restarting
+      // forever ("timer keeps running after AI stopped").
+      if (stale) {
+        aiPausedPath = ""
+        lastAiStartedSessionPath = ""
+      }
       maybeAutoStart()
     } else {
       aiActive = false
       aiTool = ""
     }
+  }
+
+  // Map a session file path back to the tool name shown in the UI. The
+  // probe only has the path, not the originating tool.
+  function aiToolName(path) {
+    var p = String(path || "")
+    if (p.indexOf("/.pi/agent/sessions/") !== -1) return "pi"
+    if (p.indexOf("/.codex/sessions/") !== -1) return "codex"
+    if (p.indexOf("/.claude/") !== -1) return "claude"
+    return "ai"
   }
 
   // ---- AI-linked pomodoro ----------------------------------------------
@@ -226,8 +276,23 @@ Item {
   //   - AI-paused work + AI working again -> auto-resume
   // Pauses caused by the AI link are marked (pausedByAiLink) so they can
   // auto-resume; manual pauses stay paused until you resume.
-  // Controlled by the "AI 联动" toggle in the panel (settings.aiLinked).
+  //
+  // The link only *follows* the timer: it never stops it when disabled. A
+  // session the link started is remembered (lastAiStartedSessionPath) so a
+  // manual Stop clears it; a session change (see onAiProbeResult) clears
+  // it too, so an old session can never keep the timer alive forever.
+  // Controlled by the "AI link" toggle in the panel (settings.aiLinked).
   property bool aiLinked: true
+
+  // Full path of the session that auto-started the current work phase.
+  // Used to tell "the AI session that owns the current pomodoro" apart
+  // from "some other AI session that happens to be alive".
+  property string lastAiStartedSessionPath: ""
+
+  // Full path of the session we auto-paused FOR (the work phase runs while
+  // that session is active). Auto-resume only happens for the same session;
+  // a different session starting does not resume this phase.
+  property string aiPausedPath: ""
 
   // Called from tick while running; returns true when the deadline advanced.
   function handleAiLink() {
@@ -241,6 +306,9 @@ Item {
       // fresh start on shell boot before the first probe runs.
       if (aiLastSeenMs > 0 && Date.now() - aiLastSeenMs > aiActiveWindowSec * 1000) {
         setState(TimerModel.pauseForAiIdle(timerState, Date.now()), true)
+        // Remember which session we are waiting for: only that session
+        // may auto-resume this phase.
+        aiPausedPath = aiLastSeenPath
         return true
       }
     }
@@ -255,15 +323,20 @@ Item {
       var now = Date.now()
       setState(TimerModel.startNewCycle(config, now), true)
       lastTickMs = now
+      // The session we auto-started the cycle for; a manual Stop or a
+      // session change clears it.
+      lastAiStartedSessionPath = aiLastSeenPath
       return
     }
     // A work phase that the AI link auto-paused (AI went idle) resumes
-    // automatically now that AI is working again. Manual pauses are left
-    // alone — the user explicitly stopped the timer.
+    // automatically now that the SAME session is working again. Manual
+    // pauses are left alone — the user explicitly stopped the timer.
     if (paused && phase === TimerModel.PhaseWork &&
-        timerState.pausedByAiLink === true) {
+        timerState.pausedByAiLink === true &&
+        aiPausedPath !== "" && aiPausedPath === aiLastSeenPath) {
       setState(TimerModel.resume(timerState, Date.now()), true)
       lastTickMs = Date.now()
+      aiPausedPath = ""
     }
   }
 

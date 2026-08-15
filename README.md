@@ -24,8 +24,11 @@ original waybar custom-module app.
   logs (i.e. actively working), a 🤖 appears inside the countdown ring and
   the panel shows the current AI state
 - 🔗 **AI link** (optional, panel toggle): auto-start the work phase when AI
-  starts working, auto-pause when AI goes idle — so your pomodoro tracks
-  time actually spent working with AI
+  starts working, auto-pause when the same AI session stops writing — so
+  your pomodoro tracks time actually spent working with AI. When AI
+  genuinely stops, the work phase auto-pauses and **does not** restart from
+  unrelated writes (background tasks, other sessions, other tools); only
+  the same session's next write resumes it, and a new session starts fresh.
 
 ## Install
 
