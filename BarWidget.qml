@@ -165,19 +165,18 @@ BarWidget {
     // paints the tomato or the ring, so the built-in label is hidden.
     labelVisible: false
     foreground: root.stateColor
-    horizontalMargin: 6.5
+    horizontalMargin: 4
     tooltipText: root.timerService
       ? root.phaseText + " · " + root.svcRemaining +
         " · " + root.svcCompleted + " pomodoros done"
       : "Pomodoro"
-    opacity: root.svcStopped
-      ? 0.6
-      : (root.svcPaused ? 0.85 : 1.0)
+    opacity: 1.0
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
       else if (buttonCode === Qt.RightButton) {
-        if (root.timerService) root.timerService.playOrStop()
+        // Right click = stop (never start, like the original waybar binding).
+        if (root.timerService) root.timerService.stop()
       }
       else if (buttonCode === Qt.MiddleButton) {
         if (root.timerService) root.timerService.skip()
@@ -188,14 +187,15 @@ BarWidget {
     Item {
       anchors.fill: parent
 
-      // Idle: monochrome tomato drawn in the theme's bar text color (white).
-      TomatoIcon {
+      // Idle: nf-md-tomato glyph from the bar's Nerd Font, pure white,
+      // small and crisp. Text glyphs always render (unlike Canvas).
+      Text {
         anchors.centerIn: parent
         visible: root.svcStopped
-        color: root.idleColor
-        iconOpacity: 1.0
-        width: Style.bar.iconSlot
-        height: Style.bar.iconSlot
+        text: "\uf0ed4"
+        color: "#ffffff"
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.bar.iconFont
       }
 
       // Running/paused: small countdown ring, no time text.

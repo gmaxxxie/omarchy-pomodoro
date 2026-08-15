@@ -114,6 +114,14 @@ Item {
     lastTickMs = now
   }
 
+  // Stop unconditionally (the panel's Stop button must never start).
+  function stop() {
+    if (!initialized || stopped) return
+    var now = Date.now()
+    setState(TimerModel.stoppedState(config, now), true)
+    lastTickMs = now
+  }
+
   function togglePause() {
     if (!initialized || stopped) return
     var now = Date.now()

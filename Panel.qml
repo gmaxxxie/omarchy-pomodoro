@@ -62,7 +62,7 @@ Panel {
     if (selectedAction === 0) timerService.playOrStop()
     else if (selectedAction === 1 && canControl) timerService.togglePause()
     else if (selectedAction === 2 && canControl) timerService.skip()
-    else if (selectedAction === 3) timerService.playOrStop()
+    else if (selectedAction === 3 && canControl) timerService.stop()
   }
 
   function actionHovered(index, hovered) {
@@ -222,10 +222,11 @@ Panel {
             foregroundColor: root.foreground
             accentColor: root.activeColor
             fontFamily: root.fontFamily
-            enabled: root.canStart
+            // Stop must never start: it is only enabled while running/paused.
+            enabled: root.canControl
             hasCursor: root.cursorActive && root.selectedAction === 3
             onHovered: function(value) { root.actionHovered(3, value) }
-            onClicked: { if (root.canStart) root.timerService.playOrStop() }
+            onClicked: { if (root.canControl) root.timerService.stop() }
           }
         }
       }
