@@ -133,7 +133,7 @@ Panel {
               anchors.horizontalCenter: parent.horizontalCenter
               text: root.timerService && !root.timerService.stopped
                 ? root.timerService.remainingText
-                : ""
+                : "🍅"
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.displayLarge
@@ -144,7 +144,7 @@ Panel {
               anchors.horizontalCenter: parent.horizontalCenter
               text: root.timerService && !root.timerService.stopped
                 ? root.timerService.phaseLabel
-                : "Idle — click start"
+                : "点击开始"
               color: root.activeColor
               font.family: root.fontFamily
               font.pixelSize: Style.font.title
