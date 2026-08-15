@@ -111,24 +111,48 @@ BarWidget {
     }
   }
 
+  // A subtle dark pill behind the whole widget. The bar is transparent and
+  // the wallpaper behind it can clash with the tomato emoji's colors, so a
+  // translucent dark capsule keeps the icon legible on any wallpaper — the
+  // same trick many bars use for icon buttons.
+  Rectangle {
+    anchors.fill: parent
+    anchors.margins: Math.max(1, Style.spaceReal(1))
+    radius: Style.cornerRadius > 0 ? Math.min(height / 2, Style.cornerRadius) : 0
+    color: Qt.rgba(0, 0, 0, 0.45)
+
+    Behavior on color { ColorAnimation { duration: 120 } }
+  }
+
   WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
     fontSize: Style.font.body
     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-    text: root.timerService
+    // The emoji is drawn by Noto Color Emoji with its own colors, so the
+    // button text color only tints the countdown digits — the tomato stays
+    // red/green and visible even when the wallpaper behind the transparent
+    // bar is reddish. That matches the original waybar module, which colored
+    // only the time text and let the emoji stay full-color.
+    //
+    // When the timer is idle (not started), show only the tomato, dimmed —
+    // the original waybar CSS did exactly this (idle: opacity 0.6, no
+    // countdown). The time only appears once a phase is running.
+    text: root.timerService && !root.timerService.stopped
       ? (root.timerService.paused
           ? root.phaseIcon + " " + root.timerService.remainingText + " ⏸"
           : root.phaseIcon + " " + root.timerService.remainingText)
-      : "🍅 25:00"
+      : "🍅"
     foreground: root.stateColor
     horizontalMargin: 6.5
     tooltipText: root.timerService
       ? root.phaseText + " · " + root.timerService.remainingText +
         " · " + root.timerService.completedPomodoros + " pomodoros done"
       : "Pomodoro"
-    opacity: root.timerService && root.timerService.paused ? 0.85 : 1.0
+    opacity: root.timerService && root.timerService.stopped
+      ? 0.6
+      : (root.timerService && root.timerService.paused ? 0.85 : 1.0)
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()

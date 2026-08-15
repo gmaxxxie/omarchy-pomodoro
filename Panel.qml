@@ -127,7 +127,9 @@ Panel {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: root.timerService ? root.timerService.remainingText : "25:00"
+              text: root.timerService && !root.timerService.stopped
+                ? root.timerService.remainingText
+                : ""
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Math.round(Style.font.displayLarge * 1.6)
@@ -136,7 +138,9 @@ Panel {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: root.timerService ? root.timerService.phaseLabel : "Idle"
+              text: root.timerService && !root.timerService.stopped
+                ? root.timerService.phaseLabel
+                : "Idle — click start"
               color: root.activeColor
               font.family: root.fontFamily
               font.pixelSize: Style.font.title
