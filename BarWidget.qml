@@ -30,6 +30,9 @@ BarWidget {
   property string svcRemaining: "25:00"
   property real svcProgress: 0
   property int svcCompleted: 0
+  // AI activity mirror (from the service's probe).
+  property bool svcAiActive: false
+  property string svcAiTool: ""
 
   readonly property bool opened: panelLoader.item
     ? panelLoader.item.opened === true
@@ -87,6 +90,8 @@ BarWidget {
     svcRemaining = timerService.remainingText
     svcProgress = timerService.progress
     svcCompleted = timerService.completedPomodoros
+    svcAiActive = timerService.aiActive
+    svcAiTool = timerService.aiTool
   }
 
   function injectPanel() {
@@ -206,6 +211,19 @@ BarWidget {
         trackColor: Color.muted
         fillColor: root.stateColor
         strokeWidth: Math.max(1.5, Style.spaceReal(1.5))
+      }
+
+      // AI activity badge: a tiny robot in the top-right corner when the
+      // AI tools are writing session logs (i.e. actively working).
+      Text {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: -2
+        anchors.topMargin: -3
+        visible: root.svcAiActive
+        text: "🤖"
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Math.round(Style.bar.iconFont * 0.7)
       }
     }
   }

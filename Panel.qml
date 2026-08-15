@@ -31,6 +31,9 @@ Panel {
   property int svcCompleted: 0
   property string svcPhaseLabel: "Work"
   property bool svcInitialized: false
+  // AI activity mirror (from the service's probe).
+  property bool svcAiActive: false
+  property string svcAiTool: ""
 
   readonly property color foreground: Color.popups.text
   readonly property color activeColor: Color.accent
@@ -76,6 +79,8 @@ Panel {
     svcCompleted = timerService.completedPomodoros
     svcPhaseLabel = timerService.phaseLabel
     svcInitialized = timerService.initialized
+    svcAiActive = timerService.aiActive
+    svcAiTool = timerService.aiTool
   }
 
   function selectAction(delta) {
@@ -210,6 +215,30 @@ Panel {
             onClicked: {
               if (root.canStart) root.timerService.playOrStop()
             }
+          }
+        }
+
+        // ---- AI activity status ----
+        Row {
+          width: parent.width
+          spacing: Style.space(6)
+          visible: root.svcInitialized
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.svcAiActive ? "🤖" : "💤"
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+          }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.svcAiActive
+              ? "AI working" + (root.svcAiTool !== "" ? " (" + root.svcAiTool + ")" : "")
+              : "AI idle"
+            color: root.svcAiActive ? root.activeColor : Qt.darker(root.foreground, 1.4)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
           }
         }
 

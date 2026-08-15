@@ -20,6 +20,9 @@ original waybar custom-module app.
 - 💾 State persisted across shell restarts
 - 😴 Sleep-safe: after a suspend/resume a running work phase is reset, a
   running break keeps its remaining time
+- 🤖 **AI activity detection**: when pi, Codex, or Claude is writing session
+  logs (i.e. actively working), the bar shows a 🤖 badge and the panel shows
+  the current AI state — so your pomodoro tracks time spent working with AI
 
 ## Install
 

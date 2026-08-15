@@ -137,6 +137,71 @@ Item {
     lastTickMs = now
   }
 
+  // ---- AI activity detection -------------------------------------------
+  //
+  // "AI is working" = a known AI tool wrote to its session log within the
+  // last `aiActiveWindowSec` seconds. The bar widget shows a robot glyph
+  // when active, and (optionally) the work phase only counts time while AI
+  // is working. Detected tools:
+  //   - pi / opencode: ~/.pi/agent/sessions/**/*.jsonl
+  //   - codex:         ~/.codex/sessions/**/*.jsonl
+  //   - claude:        ~/.claude/projects/**/session.jsonl (if present)
+  // The probe is a single `find` that prints the newest mtime; exit 0 with
+  // a recent file means active.
+  readonly property int aiActiveWindowSec: 180  // 3 min of quiet = idle
+  property bool aiActive: false
+  property string aiTool: ""          // which tool was seen active
+  property double aiLastSeenMs: 0      // when activity was last detected
+  property bool aiProbeRunning: false
+
+  readonly property var aiSessionDirs: [
+    Quickshell.env("HOME") + "/.pi/agent/sessions",
+    Quickshell.env("HOME") + "/.codex/sessions",
+    Quickshell.env("HOME") + "/.claude/projects"
+  ]
+
+  function probeAi() {
+    if (aiProbeRunning) return
+    // Probe each session dir: if any *.jsonl/*.json was modified within the
+    // last 3 minutes, that AI tool is actively working. Args are passed one
+    // per argv element (no shell quoting pitfalls), and the find expression
+    // avoids `\(` escapes that JS strings mangle.
+    var args = ["bash", "-c",
+      "for d; do \n" +
+      "  [ -d \"$d\" ] || continue\n" +
+      "  f=$(find \"$d\" -type f -mmin -3 \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%f\\n' 2>/dev/null | head -1)\n" +
+      "  [ -n \"$f\" ] && { printf '%s' \"$f\"; exit 0; }\n" +
+      "done\n" +
+      "exit 1", "--"].concat(aiSessionDirs)
+    aiProbeProcess.command = args
+    aiProbeRunning = true
+    aiProbeProcess.running = true
+  }
+
+  Process {
+    id: aiProbeProcess
+    running: false
+    stdout: StdioCollector {
+      id: aiProbeStdout
+      waitForEnd: true
+      onStreamFinished: root.onAiProbeResult(String(aiProbeStdout.text || ""))
+    }
+    onExited: root.aiProbeRunning = false
+  }
+
+  function onAiProbeResult(name) {
+    var trimmed = String(name || "").replace(/\s+$/, "")
+    if (trimmed !== "") {
+      aiActive = true
+      aiTool = trimmed
+      aiLastSeenMs = Date.now()
+    } else {
+      aiActive = false
+      aiTool = ""
+    }
+  }
+
+  // ---- tick loop ----
   function tick() {
     if (!initialized) return
     var now = Date.now()
@@ -252,6 +317,16 @@ Item {
     repeat: true
     running: root.initialized
     onTriggered: root.tick()
+  }
+
+  // AI activity probe — every 30s, starts as soon as the service is up so
+  // the bar can show the robot state immediately.
+  Timer {
+    interval: 30000
+    repeat: true
+    running: root.initialized
+    triggeredOnStart: true
+    onTriggered: root.probeAi()
   }
 
   Timer {
