@@ -32,7 +32,6 @@ BarWidget {
   property int svcCompleted: 0
   // AI activity mirror (from the service's probe).
   property bool svcAiActive: false
-  property string svcAiTool: ""
 
   readonly property bool opened: panelLoader.item
     ? panelLoader.item.opened === true
@@ -91,7 +90,6 @@ BarWidget {
     svcProgress = timerService.progress
     svcCompleted = timerService.completedPomodoros
     svcAiActive = timerService.aiActive
-    svcAiTool = timerService.aiTool
   }
 
   function injectPanel() {
@@ -216,9 +214,12 @@ BarWidget {
           strokeWidth: Math.max(1.5, Style.spaceReal(1.5))
         }
 
-        // Robot centered inside the ring when AI is working.
+        // Robot centered inside the ring when AI is working. The emoji
+        // glyph's optical center sits slightly off its box, so a tiny offset
+        // compensates for true visual centering.
         Text {
           anchors.centerIn: parent
+          anchors.verticalCenterOffset: -1
           visible: root.svcAiActive
           text: "🤖"
           font.family: root.bar ? root.bar.fontFamily : Style.font.family

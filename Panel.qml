@@ -33,7 +33,6 @@ Panel {
   property bool svcInitialized: false
   // AI activity mirror (from the service's probe).
   property bool svcAiActive: false
-  property string svcAiTool: ""
   // AI-link toggle state (from the service's configure(settings)).
   property bool svcAiLinked: true
 
@@ -85,7 +84,6 @@ Panel {
     svcPhaseLabel = timerService.phaseLabel
     svcInitialized = timerService.initialized
     svcAiActive = timerService.aiActive
-    svcAiTool = timerService.aiTool
     svcAiLinked = timerService.aiLinked
   }
 
@@ -273,9 +271,7 @@ Panel {
 
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.svcAiActive
-              ? "AI working" + (root.svcAiTool !== "" ? " (" + root.svcAiTool + ")" : "")
-              : "AI idle"
+            text: root.svcAiActive ? "AI working" : "AI idle"
             color: root.svcAiActive ? root.activeColor : Qt.darker(root.foreground, 1.4)
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
