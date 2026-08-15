@@ -187,15 +187,16 @@ BarWidget {
     Item {
       anchors.fill: parent
 
-      // Idle: Canvas-drawn tomato, pure white. Sized at least 20px —
-      // Quickshell Canvas needs a reasonably large surface to render.
-      TomatoIcon {
+      // Idle: the full-color 🍅 emoji (Noto Color Emoji renders it). The
+      // bar font already falls back to the emoji font for 🍅, so it always
+      // shows the real tomato.
+      Text {
         anchors.centerIn: parent
         visible: root.svcStopped
+        text: "🍅"
         color: "#ffffff"
-        iconOpacity: 1.0
-        width: Math.max(20, Style.bar.iconCanvas)
-        height: Math.max(20, Style.bar.iconCanvas)
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.bar.iconFont
       }
 
       // Running/paused: small countdown ring, no time text.
