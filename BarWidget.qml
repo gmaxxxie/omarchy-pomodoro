@@ -7,8 +7,9 @@ import qs.Ui
 //
 // Idle: just the tomato emoji, dimmed, on the transparent bar — no countdown
 // (matches the original waybar CSS `#custom-pomodoro.idle`).
-// Running/paused: a circular countdown ring (progress = elapsed fraction of
-// the phase) with the remaining time beside it, colored by state.
+// Running/paused: a small circular countdown ring only — no time text, sized
+// to the standard bar icon slot (Style.bar.iconSlot) so it matches every
+// other icon in the bar.
 //
 // Click behaviour follows the original waybar bindings:
 //   Left   -> toggle start/pause
@@ -60,6 +61,10 @@ BarWidget {
   // Progress goes 0 -> 1 as the phase elapses (the ring fills up as time
   // runs down — a countdown display).
   readonly property real progress: timerService ? timerService.progress : 0
+
+  // Ring sized to the standard bar icon font size (13px default) — small,
+  // like a text glyph in the bar.
+  readonly property real ringSize: Style.bar.iconFont
 
   function syncService() {
     if (timerService && typeof timerService.configure === "function")
@@ -119,20 +124,15 @@ BarWidget {
     bar: root.bar
     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
     // Idle: tomato only, dimmed, on the transparent bar (no background).
-    // Running/paused: countdown ring + remaining time.
+    // Running/paused: countdown ring only (no time text).
     //
     // WidgetButton's own `visible` is `hasVisualContent || keepSpace` where
     // hasVisualContent = text !== "", so text must carry the visible content
     // or the whole button (and our Row inside it) hides. The Row below draws
-    // the ring; this text supplies the content signal and the running time.
-    text: root.timerService && !root.timerService.stopped
-      ? (root.timerService.paused
-          ? root.timerService.remainingText + " ⏸"
-          : root.timerService.remainingText)
-      : "🍅"
-    // The label text above only serves as the content signal (visible =
-    // hasVisualContent || keepSpace); the Row below paints ring + time, so
-    // the built-in label must not double-draw the time.
+    // the ring; this text is just the content signal.
+    text: "🍅"
+    // The label text above only serves as the content signal; the Row below
+    // paints the tomato or the ring, so the built-in label is hidden.
     labelVisible: false
     foreground: root.stateColor
     horizontalMargin: 6.5
@@ -154,52 +154,33 @@ BarWidget {
       }
     }
 
-    // Content: a Row that switches between idle (emoji only) and running
-    // (ring + time). WidgetButton's own label stays empty-ish so the ring
-    // and time render once; the label text above is only the content signal.
-    Row {
-      id: content
+    // Content: the tomato when idle, a small countdown ring when running.
+    Item {
       anchors.fill: parent
-      spacing: Style.space(6)
 
       // Idle: just the tomato, dimmed.
       Text {
-        id: idleEmoji
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.centerIn: parent
         visible: !root.timerService || root.timerService.stopped
         text: root.phaseIcon
         color: root.idleColor
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Style.font.body + 2
+        // Icon-sized, matching the other bar icons.
+        font.pixelSize: Style.bar.iconFont
         opacity: 0.6
       }
 
-      // Running/paused: countdown ring + remaining time.
+      // Running/paused: small countdown ring, no time text.
       CircularProgress {
         id: ring
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.centerIn: parent
         visible: root.timerService && !root.timerService.stopped
-        width: Style.bar.iconCanvas
-        height: Style.bar.iconCanvas
+        width: root.ringSize
+        height: root.ringSize
         progress: root.progress
         trackColor: Color.muted
         fillColor: root.stateColor
-        strokeWidth: Math.max(2, Style.spaceReal(2))
-      }
-
-      Text {
-        id: timeText
-        anchors.verticalCenter: parent.verticalCenter
-        visible: root.timerService && !root.timerService.stopped
-        text: root.timerService
-          ? (root.timerService.paused
-              ? root.timerService.remainingText + " ⏸"
-              : root.timerService.remainingText)
-          : ""
-        color: root.stateColor
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Style.font.caption
-        font.bold: true
+        strokeWidth: Math.max(1.5, Style.spaceReal(1.5))
       }
     }
   }
