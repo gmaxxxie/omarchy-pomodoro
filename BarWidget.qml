@@ -200,30 +200,30 @@ BarWidget {
         font.pixelSize: Style.bar.iconFont
       }
 
-      // Running/paused: small countdown ring, no time text.
-      CircularProgress {
-        id: ring
+      // Running/paused: small countdown ring, no time text. When AI is
+      // active, a tiny 🤖 sits inside the ring instead of a corner badge.
+      Item {
         anchors.centerIn: parent
         visible: !root.svcStopped
         width: root.ringSize
         height: root.ringSize
-        progress: root.svcProgress
-        trackColor: Color.muted
-        fillColor: root.stateColor
-        strokeWidth: Math.max(1.5, Style.spaceReal(1.5))
-      }
 
-      // AI activity badge: a tiny robot in the top-right corner when the
-      // AI tools are writing session logs (i.e. actively working).
-      Text {
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.rightMargin: -2
-        anchors.topMargin: -3
-        visible: root.svcAiActive
-        text: "🤖"
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Math.round(Style.bar.iconFont * 0.7)
+        CircularProgress {
+          anchors.fill: parent
+          progress: root.svcProgress
+          trackColor: Color.muted
+          fillColor: root.stateColor
+          strokeWidth: Math.max(1.5, Style.spaceReal(1.5))
+        }
+
+        // Robot centered inside the ring when AI is working.
+        Text {
+          anchors.centerIn: parent
+          visible: root.svcAiActive
+          text: "🤖"
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Math.round(root.ringSize * 0.55)
+        }
       }
     }
   }

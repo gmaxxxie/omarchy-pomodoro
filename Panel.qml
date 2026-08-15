@@ -34,6 +34,11 @@ Panel {
   // AI activity mirror (from the service's probe).
   property bool svcAiActive: false
   property string svcAiTool: ""
+  // AI-link toggle state (from the service's configure(settings)).
+  property bool svcAiLinked: true
+
+  // Injected by BarWidget.injectPanel(); the widget's shell.json entry.
+  property var settings: ({})
 
   readonly property color foreground: Color.popups.text
   readonly property color activeColor: Color.accent
@@ -81,15 +86,34 @@ Panel {
     svcInitialized = timerService.initialized
     svcAiActive = timerService.aiActive
     svcAiTool = timerService.aiTool
+    svcAiLinked = timerService.aiLinked
+  }
+
+  // Persist the AI-link toggle to the widget's shell.json entry, the same
+  // pattern the built-in clock panel uses for its settings.
+  function setAiLinked(on) {
+    svcAiLinked = on
+    if (timerService && typeof timerService.configure === "function")
+      timerService.configure({ aiLinked: on })
+
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    entry.aiLinked = on
+    root.settings = entry
+    if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
   function selectAction(delta) {
     cursorActive = true
     if (!canControl) {
-      selectedAction = 0
+      // Stopped/paused: only the Start row and the AI-link toggle matter.
+      if (selectedAction > 4) selectedAction = 4
       return
     }
-    selectedAction = ((selectedAction + delta) % 4 + 4) % 4
+    // 5 targets: 4 action rows + the AI-link toggle.
+    selectedAction = ((selectedAction + delta) % 5 + 5) % 5
   }
 
   function activateSelected() {
@@ -105,6 +129,7 @@ Panel {
     else if (selectedAction === 1 && canControl) timerService.togglePause()
     else if (selectedAction === 2 && canControl) timerService.skip()
     else if (selectedAction === 3 && canControl) timerService.stop()
+    else if (selectedAction === 4) root.setAiLinked(!root.svcAiLinked)
   }
 
   function actionHovered(index, hovered) {
@@ -185,15 +210,30 @@ Panel {
             anchors.centerIn: parent
             spacing: Style.space(2)
 
-            Text {
+            Row {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: !root.svcStopped
-                ? root.svcRemaining
-                : "🍅"
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.displayLarge
-              font.bold: true
+              spacing: Style.space(6)
+
+              // Robot sits inside the ring, left of the countdown, when AI
+              // is working.
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.svcAiActive && !root.svcStopped
+                text: "🤖"
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.display
+              }
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: !root.svcStopped
+                  ? root.svcRemaining
+                  : "🍅"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.displayLarge
+                font.bold: true
+              }
             }
 
             Text {
@@ -240,6 +280,23 @@ Panel {
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
           }
+        }
+
+        // ---- AI link toggle ----
+        // Lets the user choose whether the pomodoro follows AI activity:
+        // AI working -> auto-start, AI idle -> auto-pause the work phase.
+        Toggle {
+          id: aiLinkToggle
+          width: parent.width
+          label: "AI 联动"
+          description: "AI 运行时自动开始 · 空闲自动暂停"
+          checked: root.svcAiLinked
+          foreground: root.foreground
+          accent: root.activeColor
+          fontFamily: root.fontFamily
+          hasCursor: root.cursorActive && root.selectedAction === 4
+          onHovered: function(value) { root.actionHovered(4, value) }
+          onClicked: root.setAiLinked(!root.svcAiLinked)
         }
 
         // ---- Pomodoro counter ----

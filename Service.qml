@@ -68,7 +68,11 @@ Item {
   ]
 
   function configure(settings) {
-    var next = TimerModel.normalizeConfig(settings || {})
+    var values = settings || {}
+    // AI-link toggle lives in the widget's shell.json entry.
+    if (typeof values.aiLinked === "boolean") aiLinked = values.aiLinked
+
+    var next = TimerModel.normalizeConfig(values)
     if (JSON.stringify(next) !== JSON.stringify(config)) {
       config = next
       if (initialized && stopped) {
@@ -195,9 +199,46 @@ Item {
       aiActive = true
       aiTool = trimmed
       aiLastSeenMs = Date.now()
+      maybeAutoStart()
     } else {
       aiActive = false
       aiTool = ""
+    }
+  }
+
+  // ---- AI-linked pomodoro ----------------------------------------------
+  //
+  // When enabled, the work phase follows AI activity:
+  //   - idle + AI working      -> auto-start a work phase
+  //   - running work + AI idle -> auto-pause (AI quiet > aiActiveWindowSec)
+  // Breaks never auto-start; paused stays paused until you resume.
+  // Controlled by the "AI 联动" toggle in the panel (settings.aiLinked).
+  property bool aiLinked: true
+
+  // Called from tick while running; returns true when the deadline advanced.
+  function handleAiLink() {
+    if (!aiLinked) return false
+
+    // AI idle for longer than the window -> pause a running work phase.
+    if (running && phase === TimerModel.PhaseWork && !aiActive) {
+      // Only pause once the quiet window has actually passed (aiActive flips
+      // false as soon as a probe finds nothing; the last-seen time decides).
+      if (Date.now() - aiLastSeenMs > aiActiveWindowSec * 1000) {
+        setState(TimerModel.pause(timerState, Date.now()), true)
+        return true
+      }
+    }
+    return false
+  }
+
+  // Auto-start when AI begins working and the timer is idle. Called from
+  // onAiProbeResult.
+  function maybeAutoStart() {
+    if (!aiLinked || !initialized) return
+    if (stopped && aiActive) {
+      var now = Date.now()
+      setState(TimerModel.startNewCycle(config, now), true)
+      lastTickMs = now
     }
   }
 
@@ -219,6 +260,12 @@ Item {
       var recovered = TimerModel.recoverInterrupted(timerState, config, now)
       setState(recovered.state, true)
       if (recovered.notifyPhase !== "") notifyPhaseStarted(recovered.notifyPhase)
+      lastTickMs = now
+      return
+    }
+
+    // AI-linked pause (work + AI idle).
+    if (root.handleAiLink()) {
       lastTickMs = now
       return
     }

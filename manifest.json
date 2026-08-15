@@ -21,7 +21,8 @@
       "workMinutes": 25,
       "shortBreakMinutes": 5,
       "longBreakMinutes": 15,
-      "pomodorosUntilLong": 4
+      "pomodorosUntilLong": 4,
+      "aiLinked": true
     },
     "schema": [
       {
@@ -59,6 +60,12 @@
         "max": 12,
         "step": 1,
         "defaultValue": 4
+      },
+      {
+        "key": "aiLinked",
+        "type": "boolean",
+        "label": "Follow AI activity (auto start/pause)",
+        "defaultValue": true
       }
     ]
   }
