@@ -111,21 +111,23 @@ Panel {
         // ---- Timer face: countdown ring + remaining time ----
         Item {
           width: parent.width
-          height: Style.space(150)
+          height: Style.space(170)
 
+          // A generous ring — big enough to read the countdown arc clearly.
           CircularProgress {
+            id: timerRing
             anchors.centerIn: parent
-            width: Math.min(parent.width, parent.height)
+            width: Math.min(parent.width, Style.space(150))
             height: width
             progress: root.timerService ? root.timerService.progress : 0
             trackColor: Color.muted
             fillColor: root.activeColor
-            strokeWidth: Math.max(5, Style.spaceReal(7))
+            strokeWidth: Math.max(5, Style.spaceReal(6))
           }
 
           Column {
             anchors.centerIn: parent
-            spacing: Style.space(5)
+            spacing: Style.space(3)
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
@@ -134,7 +136,7 @@ Panel {
                 : ""
               color: root.foreground
               font.family: root.fontFamily
-              font.pixelSize: Math.round(Style.font.displayLarge * 1.6)
+              font.pixelSize: Style.font.displayLarge
               font.bold: true
             }
 

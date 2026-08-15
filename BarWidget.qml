@@ -19,9 +19,18 @@ BarWidget {
   id: root
   moduleName: "io.github.punkpeye.waybar-pomodoro"
 
-  readonly property var timerService: bar && bar.shell
-    ? bar.shell.serviceFor(moduleName)
-    : null
+  // The service instance is fetched once and kept in a mutable property; the
+  // readonly binding to bar.shell.serviceFor() is a function call and QML
+  // cannot track status changes through it. A refresh timer below re-checks
+  // status every second so the icon switches stopped<->running correctly.
+  property var timerService: null
+  property var svcStatus: ""
+  property bool svcStopped: true
+  property var svcPaused: false
+  property string svcPhase: "work"
+  property string svcRemaining: "25:00"
+  property real svcProgress: 0
+  property int svcCompleted: 0
 
   readonly property bool opened: panelLoader.item
     ? panelLoader.item.opened === true
@@ -32,14 +41,7 @@ BarWidget {
   readonly property real openPanelIndicatorWidth: Style.bar.iconCanvas
   readonly property real openPanelIndicatorHeight: Style.bar.iconCanvas
 
-  // Phase icon and label, mirroring the original waybar module.
-  readonly property string phaseIcon: {
-    if (!timerService || timerService.stopped) return "🍅"
-    if (timerService.phase === "shortBreak") return "☕"
-    if (timerService.phase === "longBreak") return "🌴"
-    return "🍅"
-  }
-
+  // Phase label, mirroring the original waybar module.
   readonly property string phaseText: timerService
     ? timerService.phaseLabel
     : "Idle"
@@ -49,27 +51,44 @@ BarWidget {
   //   short break-> accent (theme accent)
   //   long break -> blue-tinted foreground (waybar's blue)
   //   paused     -> amber-tinted foreground (waybar's yellow)
-  readonly property color idleColor: root.bar ? root.bar.barForeground : Color.foreground
+  // Idle color: the theme's bar text color (white on the default theme).
+  // NOT bar.barForeground — that one is the wallpaper-sampled color when the
+  // bar is transparent, which can come out dark. The user wants the icon to
+  // match the other bar icons, which use the theme text color.
+  readonly property color idleColor: Color.bar.text
   readonly property color stateColor: {
-    if (!timerService || timerService.stopped) return idleColor
-    if (timerService.paused) return Qt.rgba(0.80, 0.63, 0.13, 1.0)
-    if (timerService.phase === "work") return Color.urgent
-    if (timerService.phase === "longBreak") return Qt.rgba(0.30, 0.55, 0.85, 1.0)
+    if (svcStopped) return idleColor
+    if (svcPaused) return Qt.rgba(0.80, 0.63, 0.13, 1.0)
+    if (svcPhase === "work") return Color.urgent
+    if (svcPhase === "longBreak") return Qt.rgba(0.30, 0.55, 0.85, 1.0)
     return Color.accent
   }
-
-  // Progress goes 0 -> 1 as the phase elapses (the ring fills up as time
-  // runs down — a countdown display).
-  readonly property real progress: timerService ? timerService.progress : 0
 
   // Ring sized to the standard bar icon font size (13px default) — small,
   // like a text glyph in the bar.
   readonly property real ringSize: Style.bar.iconFont
 
   function syncService() {
-    if (timerService && typeof timerService.configure === "function")
-      timerService.configure(settings)
+    var svc = bar && bar.shell ? bar.shell.serviceFor(moduleName) : null
+    timerService = svc
+    refreshFromService()
+    if (svc && typeof svc.configure === "function")
+      svc.configure(settings)
     injectPanel()
+  }
+
+  // Pull the current status into plain properties so the UI rebinds on every
+  // tick. The service's own nested properties (timerState.status) don't
+  // trigger QML bindings through the serviceFor() function-call boundary.
+  function refreshFromService() {
+    if (!timerService) return
+    svcStatus = timerService.status
+    svcStopped = timerService.stopped
+    svcPaused = timerService.paused
+    svcPhase = timerService.phase
+    svcRemaining = timerService.remainingText
+    svcProgress = timerService.progress
+    svcCompleted = timerService.completedPomodoros
   }
 
   function injectPanel() {
@@ -107,6 +126,17 @@ BarWidget {
   onTimerServiceChanged: Qt.callLater(syncService)
   Component.onCompleted: Qt.callLater(syncService)
 
+  // Poll the service every second: the status properties live behind a
+  // function-call boundary (bar.shell.serviceFor) that QML cannot track, so
+  // the ring/time/color rebind from the plain svc* copies instead.
+  Timer {
+    interval: 1000
+    running: root.timerService !== null
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refreshFromService()
+  }
+
   Loader {
     id: panelLoader
     active: true
@@ -123,26 +153,26 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-    // Idle: tomato only, dimmed, on the transparent bar (no background).
-    // Running/paused: countdown ring only (no time text).
+    // Idle: monochrome tomato drawn in the bar's icon color (white on the
+    // default theme) — matches every other bar icon. Running/paused:
+    // countdown ring only (no time text).
     //
     // WidgetButton's own `visible` is `hasVisualContent || keepSpace` where
     // hasVisualContent = text !== "", so text must carry the visible content
-    // or the whole button (and our Row inside it) hides. The Row below draws
-    // the ring; this text is just the content signal.
-    text: "🍅"
-    // The label text above only serves as the content signal; the Row below
+    // or the whole button (and our Item inside it) hides.
+    text: "\uf07c0"
+    // The label text above only serves as the content signal; the Item below
     // paints the tomato or the ring, so the built-in label is hidden.
     labelVisible: false
     foreground: root.stateColor
     horizontalMargin: 6.5
     tooltipText: root.timerService
-      ? root.phaseText + " · " + root.timerService.remainingText +
-        " · " + root.timerService.completedPomodoros + " pomodoros done"
+      ? root.phaseText + " · " + root.svcRemaining +
+        " · " + root.svcCompleted + " pomodoros done"
       : "Pomodoro"
-    opacity: root.timerService && root.timerService.stopped
+    opacity: root.svcStopped
       ? 0.6
-      : (root.timerService && root.timerService.paused ? 0.85 : 1.0)
+      : (root.svcPaused ? 0.85 : 1.0)
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
@@ -158,26 +188,24 @@ BarWidget {
     Item {
       anchors.fill: parent
 
-      // Idle: just the tomato, dimmed.
-      Text {
+      // Idle: monochrome tomato drawn in the theme's bar text color (white).
+      TomatoIcon {
         anchors.centerIn: parent
-        visible: !root.timerService || root.timerService.stopped
-        text: root.phaseIcon
+        visible: root.svcStopped
         color: root.idleColor
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        // Icon-sized, matching the other bar icons.
-        font.pixelSize: Style.bar.iconFont
-        opacity: 0.6
+        iconOpacity: 1.0
+        width: Style.bar.iconSlot
+        height: Style.bar.iconSlot
       }
 
       // Running/paused: small countdown ring, no time text.
       CircularProgress {
         id: ring
         anchors.centerIn: parent
-        visible: root.timerService && !root.timerService.stopped
+        visible: !root.svcStopped
         width: root.ringSize
         height: root.ringSize
-        progress: root.progress
+        progress: root.svcProgress
         trackColor: Color.muted
         fillColor: root.stateColor
         strokeWidth: Math.max(1.5, Style.spaceReal(1.5))

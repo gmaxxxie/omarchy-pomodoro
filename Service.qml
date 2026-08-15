@@ -82,6 +82,7 @@ Item {
   function initializeIfReady() {
     if (initialized || !configReady || !stateFileLoaded) return
 
+
     var restored = null
     if (String(loadedStateText || "").trim() !== "") {
       try {
@@ -222,7 +223,9 @@ Item {
   }
 
   function flushState() {
-    if (!savePending || !stateDirReady) return
+    // Never write before initialization: the default stopped state must not
+    // clobber a persisted running/paused state on startup.
+    if (!initialized || !savePending || !stateDirReady) return
     savePending = false
     var snapshot = TimerModel.serializableState(timerState, Date.now())
     stateFile.setText(JSON.stringify(snapshot, null, 2) + "\n")
@@ -253,7 +256,11 @@ Item {
         console.warn("Pomodoro: could not create the state directory")
         return
       }
-      root.flushState()
+      // Do NOT flush here: at startup this runs before the state file has
+      // been read, and flushing would overwrite the persisted state with the
+      // default stopped state (a race with FileView.onLoaded). Only the
+      // scheduled save from setState() after initialization may write.
+      if (root.initialized && root.savePending) root.flushState()
     }
   }
 
