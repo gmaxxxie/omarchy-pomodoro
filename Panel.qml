@@ -193,6 +193,8 @@ Panel {
           height: Style.space(140)
 
           // A generous ring — big enough to read the countdown arc clearly.
+          // Amber while paused (same color as the bar widget), accent
+          // otherwise.
           CircularProgress {
             id: timerRing
             anchors.centerIn: parent
@@ -200,7 +202,7 @@ Panel {
             height: width
             progress: root.svcProgress
             trackColor: Color.muted
-            fillColor: root.activeColor
+            fillColor: root.svcPaused ? Qt.rgba(0.80, 0.63, 0.13, 1.0) : root.activeColor
             strokeWidth: Math.max(5, Style.spaceReal(6))
           }
 
@@ -211,16 +213,6 @@ Panel {
             Row {
               anchors.horizontalCenter: parent.horizontalCenter
               spacing: Style.space(6)
-
-              // Robot sits inside the ring, left of the countdown, when AI
-              // is working.
-              Text {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.svcAiActive && !root.svcStopped
-                text: "🤖"
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.display
-              }
 
               Text {
                 anchors.verticalCenter: parent.verticalCenter
@@ -237,12 +229,40 @@ Panel {
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
               text: !root.svcStopped
-                ? root.svcPhaseLabel
+                ? (root.svcPaused ? "Paused — " : "") + root.svcPhaseLabel
                 : "Click to start"
-              color: root.activeColor
+              color: root.svcPaused ? Qt.rgba(0.80, 0.63, 0.13, 1.0) : root.activeColor
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
             }
+          }
+
+          // State badge anchored to the ring's top-right corner: 🤖 while
+          // AI is working, ⏸ while paused (AI off). Absolutely positioned so
+          // it never widens the centered countdown Row (which would overflow
+          // the ring with the large time digits). Pause wins the slot; the
+          // amber ring carries the paused state when AI is also active.
+          Text {
+            anchors.right: timerRing.right
+            anchors.top: timerRing.top
+            anchors.rightMargin: Math.max(2, Style.spaceReal(4))
+            anchors.topMargin: Math.max(2, Style.spaceReal(2))
+            visible: root.svcAiActive && !root.svcStopped
+            text: "🤖"
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+          }
+
+          Text {
+            anchors.right: timerRing.right
+            anchors.top: timerRing.top
+            anchors.rightMargin: Math.max(2, Style.spaceReal(4))
+            anchors.topMargin: Math.max(2, Style.spaceReal(2))
+            visible: root.svcPaused && !root.svcAiActive
+            text: "⏸"
+            color: Qt.rgba(0.80, 0.63, 0.13, 1.0)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
           }
 
           // Clicking the face starts (idle) or toggles (running).
@@ -264,15 +284,21 @@ Panel {
 
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.svcAiActive ? "🤖" : "💤"
+            text: root.svcPaused
+              ? "⏸"
+              : (root.svcAiActive ? "🤖" : "💤")
             font.family: root.fontFamily
             font.pixelSize: Style.font.subtitle
           }
 
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.svcAiActive ? "AI working" : "AI idle"
-            color: root.svcAiActive ? root.activeColor : Qt.darker(root.foreground, 1.4)
+            text: root.svcPaused
+              ? "Paused"
+              : (root.svcAiActive ? "AI working" : "AI idle")
+            color: root.svcPaused
+              ? Qt.rgba(0.80, 0.63, 0.13, 1.0)
+              : (root.svcAiActive ? root.activeColor : Qt.darker(root.foreground, 1.4))
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
           }
@@ -333,13 +359,14 @@ Panel {
           }
 
           PomodoroActionRow {
-            iconText: ""
-            labelText: "Pause"
+            iconText: root.svcPaused ? "" : ""
+            labelText: root.svcPaused ? "Resume" : "Pause"
             hintText: "Space"
             foregroundColor: root.foreground
             accentColor: root.activeColor
             fontFamily: root.fontFamily
-            enabled: root.canControl && !root.svcPaused
+            // Paused: Pause hides, Resume takes its place; both resume.
+            enabled: root.canControl
             hasCursor: root.cursorActive && root.selectedAction === 1
             onHovered: function(value) { root.actionHovered(1, value) }
             onClicked: { if (root.canControl) root.timerService.togglePause() }

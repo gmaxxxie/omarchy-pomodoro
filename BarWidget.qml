@@ -9,7 +9,8 @@ import qs.Ui
 // (matches the original waybar CSS `#custom-pomodoro.idle`).
 // Running/paused: a small circular countdown ring only — no time text, sized
 // to the standard bar icon slot (Style.bar.iconSlot) so it matches every
-// other icon in the bar.
+// other icon in the bar. While paused, a small ⏸ glyph sits inside the ring
+// (the ring also turns amber) so the paused state is visible at a glance.
 //
 // Click behaviour follows the original waybar bindings:
 //   Left   -> toggle start/pause
@@ -167,6 +168,7 @@ BarWidget {
     horizontalMargin: 4
     tooltipText: root.timerService
       ? root.phaseText + " · " + root.svcRemaining +
+        (root.svcPaused ? " · Paused" : "") +
         " · " + root.svcCompleted + " pomodoros done"
       : "Pomodoro"
     opacity: 1.0
@@ -224,6 +226,22 @@ BarWidget {
           anchors.verticalCenterOffset: 1
           visible: root.svcAiActive
           text: "🤖"
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Math.round(root.ringSize * 0.7)
+        }
+
+        // Pause glyph centered inside the ring while paused. Same single-slot
+        // position as the robot; when AI is also active the robot wins the
+        // slot and the amber ring color carries the paused state. Uses the
+        // plain ⏸ character — the md-pause nerd glyph doesn't render in the
+        // bar's small font context (verified against the panel).
+        Text {
+          anchors.centerIn: parent
+          anchors.horizontalCenterOffset: -1
+          anchors.verticalCenterOffset: 1
+          visible: root.svcPaused && !root.svcAiActive
+          text: "⏸"
+          color: root.stateColor
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Math.round(root.ringSize * 0.7)
         }
