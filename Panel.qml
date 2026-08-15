@@ -214,27 +214,6 @@ Panel {
               anchors.horizontalCenter: parent.horizontalCenter
               spacing: Style.space(6)
 
-              // Robot sits inside the ring, left of the countdown, when AI
-              // is working.
-              Text {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.svcAiActive && !root.svcStopped
-                text: "🤖"
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.display
-              }
-
-              // Pause glyph left of the countdown while paused, mirroring
-              // the bar widget's pause marker.
-              Text {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.svcPaused && !root.svcAiActive
-                text: "󰏤"
-                color: root.svcPaused ? Qt.rgba(0.80, 0.63, 0.13, 1.0) : root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.display
-              }
-
               Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: !root.svcStopped
@@ -256,6 +235,34 @@ Panel {
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
             }
+          }
+
+          // State badge anchored to the ring's top-right corner: 🤖 while
+          // AI is working, ⏸ while paused (AI off). Absolutely positioned so
+          // it never widens the centered countdown Row (which would overflow
+          // the ring with the large time digits). Pause wins the slot; the
+          // amber ring carries the paused state when AI is also active.
+          Text {
+            anchors.right: timerRing.right
+            anchors.top: timerRing.top
+            anchors.rightMargin: Math.max(2, Style.spaceReal(4))
+            anchors.topMargin: Math.max(2, Style.spaceReal(2))
+            visible: root.svcAiActive && !root.svcStopped
+            text: "🤖"
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+          }
+
+          Text {
+            anchors.right: timerRing.right
+            anchors.top: timerRing.top
+            anchors.rightMargin: Math.max(2, Style.spaceReal(4))
+            anchors.topMargin: Math.max(2, Style.spaceReal(2))
+            visible: root.svcPaused && !root.svcAiActive
+            text: "⏸"
+            color: Qt.rgba(0.80, 0.63, 0.13, 1.0)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
           }
 
           // Clicking the face starts (idle) or toggles (running).

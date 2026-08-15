@@ -233,14 +233,14 @@ BarWidget {
         // Pause glyph centered inside the ring while paused. Same single-slot
         // position as the robot; when AI is also active the robot wins the
         // slot and the amber ring color carries the paused state. Uses the
-        // same md-pause glyph as the media player plugin's pause marker, so
-        // it renders reliably in the bar font context.
+        // plain ⏸ character — the md-pause nerd glyph doesn't render in the
+        // bar's small font context (verified against the panel).
         Text {
           anchors.centerIn: parent
           anchors.horizontalCenterOffset: -1
           anchors.verticalCenterOffset: 1
           visible: root.svcPaused && !root.svcAiActive
-          text: "󰏤"
+          text: "⏸"
           color: root.stateColor
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Math.round(root.ringSize * 0.7)
