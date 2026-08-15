@@ -187,15 +187,15 @@ BarWidget {
     Item {
       anchors.fill: parent
 
-      // Idle: nf-md-tomato glyph from the bar's Nerd Font, pure white,
-      // small and crisp. Text glyphs always render (unlike Canvas).
-      Text {
+      // Idle: Canvas-drawn tomato, pure white. Sized at least 20px —
+      // Quickshell Canvas needs a reasonably large surface to render.
+      TomatoIcon {
         anchors.centerIn: parent
         visible: root.svcStopped
-        text: "\uf0ed4"
         color: "#ffffff"
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Style.bar.iconFont
+        iconOpacity: 1.0
+        width: Math.max(20, Style.bar.iconCanvas)
+        height: Math.max(20, Style.bar.iconCanvas)
       }
 
       // Running/paused: small countdown ring, no time text.
