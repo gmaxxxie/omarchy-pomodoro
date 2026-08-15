@@ -123,6 +123,19 @@ function pause(state, nowMs) {
   next.remainingSec = Math.max(0, remaining)
   next.deadlineMs = 0
   next.updatedAtMs = now
+  // Keep any existing pausedByAiLink marker (e.g. re-pausing an already
+  // AI-paused state); callers pass through pauseReason for fresh pauses.
+  if (typeof next.pausedByAiLink !== "boolean")
+    next.pausedByAiLink = false
+  return next
+}
+
+// Same as pause() but marks the pause as caused by the AI-link auto-pause,
+// so it can auto-resume when AI starts working again.
+function pauseForAiIdle(state, nowMs) {
+  var next = pause(state, nowMs)
+  if (!next || next === state) return state
+  next.pausedByAiLink = true
   return next
 }
 
@@ -138,6 +151,7 @@ function resume(state, nowMs) {
   next.startedAtMs = now - (total - remaining) * 1000
   next.deadlineMs = now + remaining * 1000
   next.updatedAtMs = now
+  delete next.pausedByAiLink
   return next
 }
 
@@ -229,6 +243,9 @@ function sanitizeState(raw, config, nowMs) {
       : remaining,
     startedAtMs: Math.max(0, finiteNumber(raw.startedAtMs, 0)),
     deadlineMs: status === StatusRunning ? Math.max(0, finiteNumber(raw.deadlineMs, 0)) : 0,
+    // Keep the AI-link pause marker only while paused; running/stopped never
+    // carry it (resume() already deletes it, this is the persistence path).
+    pausedByAiLink: status === StatusPaused && raw.pausedByAiLink === true,
     updatedAtMs: Math.max(0, finiteNumber(raw.updatedAtMs, now))
   }
 }
