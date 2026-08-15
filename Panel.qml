@@ -284,8 +284,8 @@ Panel {
         Toggle {
           id: aiLinkToggle
           width: parent.width
-          label: "AI 联动"
-          description: "AI 运行时自动开始 · 空闲自动暂停"
+          label: "AI link"
+          description: "Auto start when AI works · pause when idle"
           checked: root.svcAiLinked
           foreground: root.foreground
           accent: root.activeColor
