@@ -185,7 +185,7 @@ Item {
     var args = ["bash", "-c",
       "for d; do \n" +
       "  [ -d \"$d\" ] || continue\n" +
-      "  f=$(find \"$d\" -type f -newermt \"@$cutoffSec\" \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%f\\n' 2>/dev/null | head -1)\n" +
+      "  f=$(find \"$d\" -type f -newermt \"@" + cutoffSec + "\" \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%f\\n' 2>/dev/null | head -1)\n" +
       "  [ -n \"$f\" ] && { printf '%s' \"$f\"; exit 0; }\n" +
       "done\n" +
       "exit 1", "--"].concat(aiSessionDirs)
@@ -223,7 +223,9 @@ Item {
   // When enabled, the work phase follows AI activity:
   //   - idle + AI working      -> auto-start a work phase
   //   - running work + AI idle -> auto-pause (AI quiet > aiActiveWindowSec)
-  // Breaks never auto-start; paused stays paused until you resume.
+  //   - AI-paused work + AI working again -> auto-resume
+  // Pauses caused by the AI link are marked (pausedByAiLink) so they can
+  // auto-resume; manual pauses stay paused until you resume.
   // Controlled by the "AI 联动" toggle in the panel (settings.aiLinked).
   property bool aiLinked: true
 
@@ -233,10 +235,12 @@ Item {
 
     // AI idle for longer than the window -> pause a running work phase.
     if (running && phase === TimerModel.PhaseWork && !aiActive) {
-      // Only pause once the quiet window has actually passed (aiActive flips
-      // false as soon as a probe finds nothing; the last-seen time decides).
-      if (Date.now() - aiLastSeenMs > aiActiveWindowSec * 1000) {
-        setState(TimerModel.pause(timerState, Date.now()), true)
+      // Only pause once the quiet window has actually passed AND we have
+      // seen AI activity at least once. aiLastSeenMs starts at 0 (never
+      // probed yet) — Date.now() - 0 would be huge and instantly pause a
+      // fresh start on shell boot before the first probe runs.
+      if (aiLastSeenMs > 0 && Date.now() - aiLastSeenMs > aiActiveWindowSec * 1000) {
+        setState(TimerModel.pauseForAiIdle(timerState, Date.now()), true)
         return true
       }
     }
@@ -246,11 +250,20 @@ Item {
   // Auto-start when AI begins working and the timer is idle. Called from
   // onAiProbeResult.
   function maybeAutoStart() {
-    if (!aiLinked || !initialized) return
-    if (stopped && aiActive) {
+    if (!aiLinked || !initialized || !aiActive) return
+    if (stopped) {
       var now = Date.now()
       setState(TimerModel.startNewCycle(config, now), true)
       lastTickMs = now
+      return
+    }
+    // A work phase that the AI link auto-paused (AI went idle) resumes
+    // automatically now that AI is working again. Manual pauses are left
+    // alone — the user explicitly stopped the timer.
+    if (paused && phase === TimerModel.PhaseWork &&
+        timerState.pausedByAiLink === true) {
+      setState(TimerModel.resume(timerState, Date.now()), true)
+      lastTickMs = Date.now()
     }
   }
 

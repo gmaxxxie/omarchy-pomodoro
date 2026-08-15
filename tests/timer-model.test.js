@@ -103,4 +103,29 @@ assert.equal(model.formatRemaining(59), "00:59")
 assert.equal(model.formatRemaining(0), "00:00")
 assert.equal(model.formatRemaining(-5), "00:00")
 
+// ---- pausedByAiLink marker: AI-link pause can auto-resume, manual cannot ----
+const running = model.startNewCycle(config, 0)
+const aiPaused = model.pauseForAiIdle(running, 10000)
+assert.equal(aiPaused.status, "paused")
+assert.equal(aiPaused.pausedByAiLink, true, "AI-link pause marks pausedByAiLink")
+assert.equal(aiPaused.remainingSec, 1490, "10s elapsed leaves 1490s")
+
+const aiResumed = model.resume(aiPaused, 20000)
+assert.equal(aiResumed.status, "running")
+assert.equal(aiResumed.pausedByAiLink, undefined, "resume clears the marker")
+
+const manualPaused = model.pause(running, 30000)
+assert.equal(manualPaused.pausedByAiLink, false, "manual pause does not mark pausedByAiLink")
+
+// Persisted state round-trip keeps the marker only while paused.
+const sanitizedPaused = model.sanitizeState(aiPaused, config, 40000)
+assert.equal(sanitizedPaused.pausedByAiLink, true, "sanitize keeps the marker on paused")
+const sanitizedResumed = model.sanitizeState(aiResumed, config, 50000)
+assert.equal(sanitizedResumed.pausedByAiLink, false, "sanitize clears the marker on running")
+
+// resume() on a plain paused state (no marker) still works and stays clean.
+const resumeManual = model.resume(manualPaused, 60000)
+assert.equal(resumeManual.status, "running")
+assert.equal(resumeManual.pausedByAiLink, undefined)
+
 console.log("timer-model tests passed")
