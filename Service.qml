@@ -151,12 +151,22 @@ Item {
   //   - codex:         ~/.codex/sessions/**/*.jsonl
   //   - claude:        ~/.claude/projects/**/session.jsonl (if present)
   // The probe is a single `find` that prints the newest mtime; exit 0 with
-  // a recent file means active.
+  // a recent file means active. `aiActiveWindowSec` is BOTH the probe's
+  // freshness window and the quiet window that auto-pauses the work phase.
+  // Window stays at 60s (pi writes session logs intermittently — gaps of
+  // 30s+ mid-think are normal), while the probe itself runs every
+  // `aiProbeIntervalSec` so the robot appears within a couple of seconds of
+  // AI starting to work.
   readonly property int aiActiveWindowSec: 60  // 1 min of quiet = idle
   property bool aiActive: false
   property string aiTool: ""          // which tool was seen active
   property double aiLastSeenMs: 0      // when activity was last detected
   property bool aiProbeRunning: false
+
+  // Probe frequency: find the newest write every `aiProbeIntervalSec`.
+  // Must stay comfortably below aiActiveWindowSec so the window is
+  // actually observed.
+  readonly property int aiProbeIntervalSec: 2
 
   readonly property var aiSessionDirs: [
     Quickshell.env("HOME") + "/.pi/agent/sessions",
@@ -166,14 +176,16 @@ Item {
 
   function probeAi() {
     if (aiProbeRunning) return
-    // Probe each session dir: if any *.jsonl/*.json was modified within the
-    // last minute, that AI tool is actively working. Args are passed one
-    // per argv element (no shell quoting pitfalls), and the find expression
-    // avoids `\(` escapes that JS strings mangle.
+    // Probe each session dir: if any *.jsonl/*.json was modified within
+    // the last `aiActiveWindowSec` seconds, that AI tool is actively
+    // working. find -mmin only has minute granularity, so the freshness
+    // cutoff is passed as an epoch with -newermt for true second-level
+    // windows.
+    var cutoffSec = Math.floor(Date.now() / 1000) - aiActiveWindowSec
     var args = ["bash", "-c",
       "for d; do \n" +
       "  [ -d \"$d\" ] || continue\n" +
-      "  f=$(find \"$d\" -type f -mmin -1 \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%f\\n' 2>/dev/null | head -1)\n" +
+      "  f=$(find \"$d\" -type f -newermt \"@$cutoffSec\" \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%f\\n' 2>/dev/null | head -1)\n" +
       "  [ -n \"$f\" ] && { printf '%s' \"$f\"; exit 0; }\n" +
       "done\n" +
       "exit 1", "--"].concat(aiSessionDirs)
@@ -366,10 +378,10 @@ Item {
     onTriggered: root.tick()
   }
 
-  // AI activity probe — every 30s, starts as soon as the service is up so
-  // the bar can show the robot state immediately.
+  // AI activity probe — every `aiProbeIntervalSec`, starts as soon as the
+  // service is up so the bar can show the robot state immediately.
   Timer {
-    interval: 30000
+    interval: root.aiProbeIntervalSec * 1000
     repeat: true
     running: root.initialized
     triggeredOnStart: true

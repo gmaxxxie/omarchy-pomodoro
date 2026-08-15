@@ -193,6 +193,8 @@ Panel {
           height: Style.space(140)
 
           // A generous ring — big enough to read the countdown arc clearly.
+          // Amber while paused (same color as the bar widget), accent
+          // otherwise.
           CircularProgress {
             id: timerRing
             anchors.centerIn: parent
@@ -200,7 +202,7 @@ Panel {
             height: width
             progress: root.svcProgress
             trackColor: Color.muted
-            fillColor: root.activeColor
+            fillColor: root.svcPaused ? Qt.rgba(0.80, 0.63, 0.13, 1.0) : root.activeColor
             strokeWidth: Math.max(5, Style.spaceReal(6))
           }
 
@@ -222,6 +224,17 @@ Panel {
                 font.pixelSize: Style.font.display
               }
 
+              // Pause glyph left of the countdown while paused, mirroring
+              // the bar widget's pause marker.
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.svcPaused && !root.svcAiActive
+                text: "󰏤"
+                color: root.svcPaused ? Qt.rgba(0.80, 0.63, 0.13, 1.0) : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.display
+              }
+
               Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: !root.svcStopped
@@ -237,9 +250,9 @@ Panel {
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
               text: !root.svcStopped
-                ? root.svcPhaseLabel
+                ? (root.svcPaused ? "Paused — " : "") + root.svcPhaseLabel
                 : "Click to start"
-              color: root.activeColor
+              color: root.svcPaused ? Qt.rgba(0.80, 0.63, 0.13, 1.0) : root.activeColor
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
             }
@@ -264,15 +277,21 @@ Panel {
 
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.svcAiActive ? "🤖" : "💤"
+            text: root.svcPaused
+              ? "⏸"
+              : (root.svcAiActive ? "🤖" : "💤")
             font.family: root.fontFamily
             font.pixelSize: Style.font.subtitle
           }
 
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.svcAiActive ? "AI working" : "AI idle"
-            color: root.svcAiActive ? root.activeColor : Qt.darker(root.foreground, 1.4)
+            text: root.svcPaused
+              ? "Paused"
+              : (root.svcAiActive ? "AI working" : "AI idle")
+            color: root.svcPaused
+              ? Qt.rgba(0.80, 0.63, 0.13, 1.0)
+              : (root.svcAiActive ? root.activeColor : Qt.darker(root.foreground, 1.4))
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
           }
@@ -333,13 +352,14 @@ Panel {
           }
 
           PomodoroActionRow {
-            iconText: ""
-            labelText: "Pause"
+            iconText: root.svcPaused ? "" : ""
+            labelText: root.svcPaused ? "Resume" : "Pause"
             hintText: "Space"
             foregroundColor: root.foreground
             accentColor: root.activeColor
             fontFamily: root.fontFamily
-            enabled: root.canControl && !root.svcPaused
+            // Paused: Pause hides, Resume takes its place; both resume.
+            enabled: root.canControl
             hasCursor: root.cursorActive && root.selectedAction === 1
             onHovered: function(value) { root.actionHovered(1, value) }
             onClicked: { if (root.canControl) root.timerService.togglePause() }
