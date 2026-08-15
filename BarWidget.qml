@@ -214,16 +214,18 @@ BarWidget {
           strokeWidth: Math.max(1.5, Style.spaceReal(1.5))
         }
 
-        // Robot centered inside the ring when AI is working. The emoji
-        // glyph's optical center sits slightly off its box, so a tiny offset
-        // compensates for true visual centering.
+        // Robot centered inside the ring when AI is working. The color emoji
+        // renders reliably (the Nerd Font glyph fragments at this size in the
+        // bar's font context). Measured center sits ~1px right and ~1px above
+        // the ring center, so offsets correct for true visual centering.
         Text {
           anchors.centerIn: parent
-          anchors.verticalCenterOffset: -1
+          anchors.horizontalCenterOffset: -1
+          anchors.verticalCenterOffset: 1
           visible: root.svcAiActive
           text: "🤖"
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Math.round(root.ringSize * 0.55)
+          font.pixelSize: Math.round(root.ringSize * 0.7)
         }
       }
     }
