@@ -20,7 +20,7 @@ CursorSurface {
   signal hovered(bool isHovered)
 
   implicitWidth: parent ? parent.width : 0
-  implicitHeight: Style.space(44)
+  implicitHeight: Style.space(34)
 
   foreground: root.foregroundColor
   accent: root.accentColor

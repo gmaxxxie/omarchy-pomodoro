@@ -106,18 +106,20 @@ Panel {
       Column {
         id: content
         width: parent.width
-        spacing: Style.space(18)
+        spacing: Style.space(12)
 
         // ---- Timer face: countdown ring + remaining time ----
+        // The whole face is clickable: when idle, clicking it starts the
+        // timer directly (no need to hunt for the Start button).
         Item {
           width: parent.width
-          height: Style.space(170)
+          height: Style.space(140)
 
           // A generous ring — big enough to read the countdown arc clearly.
           CircularProgress {
             id: timerRing
             anchors.centerIn: parent
-            width: Math.min(parent.width, Style.space(150))
+            width: Math.min(parent.width, Style.space(130))
             height: width
             progress: root.timerService ? root.timerService.progress : 0
             trackColor: Color.muted
@@ -127,7 +129,7 @@ Panel {
 
           Column {
             anchors.centerIn: parent
-            spacing: Style.space(3)
+            spacing: Style.space(2)
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
@@ -144,10 +146,20 @@ Panel {
               anchors.horizontalCenter: parent.horizontalCenter
               text: root.timerService && !root.timerService.stopped
                 ? root.timerService.phaseLabel
-                : "点击开始"
+                : "Click to start"
               color: root.activeColor
               font.family: root.fontFamily
-              font.pixelSize: Style.font.title
+              font.pixelSize: Style.font.bodySmall
+            }
+          }
+
+          // Clicking the face starts (idle) or toggles (running).
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+              if (root.canStart) root.timerService.playOrStop()
             }
           }
         }
@@ -168,7 +180,7 @@ Panel {
         // ---- Actions ----
         Column {
           width: parent.width
-          spacing: Style.space(6)
+          spacing: Style.space(4)
 
           PanelSectionHeader {
             text: "ACTIONS"
