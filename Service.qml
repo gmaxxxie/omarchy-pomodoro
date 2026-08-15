@@ -152,7 +152,7 @@ Item {
   //   - claude:        ~/.claude/projects/**/session.jsonl (if present)
   // The probe is a single `find` that prints the newest mtime; exit 0 with
   // a recent file means active.
-  readonly property int aiActiveWindowSec: 180  // 3 min of quiet = idle
+  readonly property int aiActiveWindowSec: 60  // 1 min of quiet = idle
   property bool aiActive: false
   property string aiTool: ""          // which tool was seen active
   property double aiLastSeenMs: 0      // when activity was last detected
@@ -167,13 +167,13 @@ Item {
   function probeAi() {
     if (aiProbeRunning) return
     // Probe each session dir: if any *.jsonl/*.json was modified within the
-    // last 3 minutes, that AI tool is actively working. Args are passed one
+    // last minute, that AI tool is actively working. Args are passed one
     // per argv element (no shell quoting pitfalls), and the find expression
     // avoids `\(` escapes that JS strings mangle.
     var args = ["bash", "-c",
       "for d; do \n" +
       "  [ -d \"$d\" ] || continue\n" +
-      "  f=$(find \"$d\" -type f -mmin -3 \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%f\\n' 2>/dev/null | head -1)\n" +
+      "  f=$(find \"$d\" -type f -mmin -1 \\( -name '*.jsonl' -o -name '*.json' \\) -printf '%f\\n' 2>/dev/null | head -1)\n" +
       "  [ -n \"$f\" ] && { printf '%s' \"$f\"; exit 0; }\n" +
       "done\n" +
       "exit 1", "--"].concat(aiSessionDirs)
