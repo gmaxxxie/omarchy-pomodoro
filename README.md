@@ -6,7 +6,7 @@ original waybar custom-module app.
 
 ![demo](https://img.shields.io/badge/waybar-pomodoro-red?style=flat-square)
 
-![screenshot-2026-01-27_20-06-33](screenshot-2026-01-27_20-06-33.png)
+![preview](preview.png)
 
 ## Features
 
@@ -21,8 +21,11 @@ original waybar custom-module app.
 - 😴 Sleep-safe: after a suspend/resume a running work phase is reset, a
   running break keeps its remaining time
 - 🤖 **AI activity detection**: when pi, Codex, or Claude is writing session
-  logs (i.e. actively working), the bar shows a 🤖 badge and the panel shows
-  the current AI state — so your pomodoro tracks time spent working with AI
+  logs (i.e. actively working), a 🤖 appears inside the countdown ring and
+  the panel shows the current AI state
+- 🔗 **AI link** (optional, panel toggle): auto-start the work phase when AI
+  starts working, auto-pause when AI goes idle — so your pomodoro tracks
+  time actually spent working with AI
 
 ## Install
 
