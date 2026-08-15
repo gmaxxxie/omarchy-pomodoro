@@ -2,7 +2,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 
-// Popup panel for the Pomodoro timer: a large ring face with the remaining
+// Popup panel for the Pomodoro timer: a big phase emoji with the remaining
 // time and phase label, a completed-pomodoro counter, and four action rows.
 // The rows mirror the original waybar mouse bindings (left toggle, right
 // stop, middle skip) as explicit, discoverable buttons, and support full
@@ -25,6 +25,13 @@ Panel {
 
   readonly property bool canStart: !!timerService && timerService.initialized
   readonly property bool canControl: canStart && !timerService.stopped
+
+  readonly property string phaseIcon: {
+    if (!timerService || timerService.stopped) return "🍅"
+    if (timerService.phase === "shortBreak") return "☕"
+    if (timerService.phase === "longBreak") return "🌴"
+    return "🍅"
+  }
 
   function open() {
     selectedAction = 0
@@ -104,21 +111,19 @@ Panel {
         // ---- Timer face ----
         Item {
           width: parent.width
-          height: Math.max(1, Style.space(150))
-
-          CircularProgress {
-            anchors.centerIn: parent
-            width: Math.min(parent.width, parent.height)
-            height: width
-            progress: root.timerService ? root.timerService.progress : 0
-            trackColor: Color.muted
-            fillColor: root.activeColor
-            strokeWidth: Math.max(5, Style.spaceReal(7))
-          }
+          height: Style.space(150)
 
           Column {
             anchors.centerIn: parent
-            spacing: Style.space(5)
+            spacing: Style.space(6)
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: root.phaseIcon
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.displayLarge * 2.2
+            }
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
@@ -131,7 +136,7 @@ Panel {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: root.timerService ? root.timerService.phaseLabel : "Work"
+              text: root.timerService ? root.timerService.phaseLabel : "Idle"
               color: root.activeColor
               font.family: root.fontFamily
               font.pixelSize: Style.font.title

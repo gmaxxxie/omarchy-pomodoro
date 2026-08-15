@@ -195,15 +195,24 @@ Item {
   }
 
   function playSound() {
-    var path = ""
-    for (var i = 0; i < soundFiles.length; i++) {
-      if (FileIO.exists(soundFiles[i])) {
-        path = soundFiles[i]
-        break
+    // The sound files are resolved with a tiny shell test rather than an FS
+    // API — Quickshell has no File.exists, and plugins avoid extra deps.
+    soundCheckProcess.command = ["bash", "-c",
+      "for f in " + soundFiles.join(" ") + "; do test -f \"$f\" && { echo \"$f\"; exit 0; }; done; exit 1"]
+    soundCheckProcess.running = true
+  }
+
+  Process {
+    id: soundCheckProcess
+    running: false
+    stdout: StdioCollector {
+      id: soundCheckStdout
+      waitForEnd: true
+      onStreamFinished: {
+        var path = String(soundCheckStdout.text || "").replace(/\s+$/, "")
+        if (path !== "") Quickshell.execDetached(["paplay", path])
       }
     }
-    if (path === "") return
-    Quickshell.execDetached(["paplay", path])
   }
 
   function scheduleSave() {
