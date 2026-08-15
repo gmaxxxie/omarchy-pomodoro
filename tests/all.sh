@@ -19,6 +19,7 @@ fi
 if command -v qmllint >/dev/null 2>&1 && [[ -n ${OMARCHY_PATH:-} && -d $OMARCHY_PATH/shell ]]; then
   qmllint -I "$OMARCHY_PATH/shell" \
     "$ROOT/Service.qml" \
+    "$ROOT/CircularProgress.qml" \
     "$ROOT/BarWidget.qml" \
     "$ROOT/Panel.qml" \
     "$ROOT/PomodoroActionRow.qml"

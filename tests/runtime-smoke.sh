@@ -48,6 +48,7 @@ cp -a "$OMARCHY_PATH/shell" "$test_root/shell"
 ln -s "$OMARCHY_PATH/bin" "$test_root/bin"
 ln -s "$OMARCHY_PATH/config" "$test_root/config"
 cp "$ROOT/manifest.json" "$ROOT/Service.qml" "$ROOT/TimerModel.js" \
+  "$ROOT/CircularProgress.qml" \
   "$ROOT/BarWidget.qml" "$ROOT/Panel.qml" \
   "$ROOT/PomodoroActionRow.qml" \
   "$plugin_dir/"

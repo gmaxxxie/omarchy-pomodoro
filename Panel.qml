@@ -108,22 +108,24 @@ Panel {
         width: parent.width
         spacing: Style.space(18)
 
-        // ---- Timer face ----
+        // ---- Timer face: countdown ring + remaining time ----
         Item {
           width: parent.width
           height: Style.space(150)
 
+          CircularProgress {
+            anchors.centerIn: parent
+            width: Math.min(parent.width, parent.height)
+            height: width
+            progress: root.timerService ? root.timerService.progress : 0
+            trackColor: Color.muted
+            fillColor: root.activeColor
+            strokeWidth: Math.max(5, Style.spaceReal(7))
+          }
+
           Column {
             anchors.centerIn: parent
-            spacing: Style.space(6)
-
-            Text {
-              anchors.horizontalCenter: parent.horizontalCenter
-              text: root.phaseIcon
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.displayLarge * 2.2
-            }
+            spacing: Style.space(5)
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter

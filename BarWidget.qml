@@ -5,12 +5,10 @@ import qs.Ui
 
 // Bar entry point for the Pomodoro timer.
 //
-// Renders exactly like the original waybar module: an emoji per phase
-// (🍅 work / ☕ short break / 🌴 long break) plus the remaining time,
-// colored by state (work red, short break green, long break blue, paused
-// amber). No custom drawing — just text, so it always renders correctly
-// and picks up the bar's font (which already falls back to the color
-// emoji font for 🍅/☕/🌴).
+// Idle: just the tomato emoji, dimmed, on the transparent bar — no countdown
+// (matches the original waybar CSS `#custom-pomodoro.idle`).
+// Running/paused: a circular countdown ring (progress = elapsed fraction of
+// the phase) with the remaining time beside it, colored by state.
 //
 // Click behaviour follows the original waybar bindings:
 //   Left   -> toggle start/pause
@@ -58,6 +56,10 @@ BarWidget {
     if (timerService.phase === "longBreak") return Qt.rgba(0.30, 0.55, 0.85, 1.0)
     return Color.accent
   }
+
+  // Progress goes 0 -> 1 as the phase elapses (the ring fills up as time
+  // runs down — a countdown display).
+  readonly property real progress: timerService ? timerService.progress : 0
 
   function syncService() {
     if (timerService && typeof timerService.configure === "function")
@@ -111,48 +113,19 @@ BarWidget {
     }
   }
 
-  // A subtle dark pill behind the whole widget. The bar is transparent and
-  // the wallpaper behind it can clash with the tomato emoji's colors, so a
-  // translucent dark capsule keeps the icon legible on any wallpaper — the
-  // same trick many bars use for icon buttons.
-  Rectangle {
-    anchors.fill: parent
-    anchors.margins: Math.max(1, Style.spaceReal(1))
-    radius: Style.cornerRadius > 0 ? Math.min(height / 2, Style.cornerRadius) : 0
-    color: Qt.rgba(0, 0, 0, 0.45)
-
-    Behavior on color { ColorAnimation { duration: 120 } }
-  }
-
   WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    fontSize: Style.font.body
     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-    // The emoji is drawn by Noto Color Emoji with its own colors, so the
-    // button text color only tints the countdown digits — the tomato stays
-    // red/green and visible even when the wallpaper behind the transparent
-    // bar is reddish. That matches the original waybar module, which colored
-    // only the time text and let the emoji stay full-color.
-    //
-    // When the timer is idle (not started), show only the tomato, dimmed —
-    // the original waybar CSS did exactly this (idle: opacity 0.6, no
-    // countdown). The time only appears once a phase is running.
-    text: root.timerService && !root.timerService.stopped
-      ? (root.timerService.paused
-          ? root.phaseIcon + " " + root.timerService.remainingText + " ⏸"
-          : root.phaseIcon + " " + root.timerService.remainingText)
-      : "🍅"
-    foreground: root.stateColor
+    // Idle: tomato only, dimmed, on the transparent bar (no background).
+    // Running/paused: countdown ring + remaining time.
+    text: ""
     horizontalMargin: 6.5
     tooltipText: root.timerService
       ? root.phaseText + " · " + root.timerService.remainingText +
         " · " + root.timerService.completedPomodoros + " pomodoros done"
       : "Pomodoro"
-    opacity: root.timerService && root.timerService.stopped
-      ? 0.6
-      : (root.timerService && root.timerService.paused ? 0.85 : 1.0)
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
@@ -161,6 +134,55 @@ BarWidget {
       }
       else if (buttonCode === Qt.MiddleButton) {
         if (root.timerService) root.timerService.skip()
+      }
+    }
+
+    // Content: a Row that switches between idle (emoji only) and running
+    // (ring + time). WidgetButton's own label is empty; we draw here.
+    Row {
+      id: content
+      anchors.fill: parent
+      spacing: Style.space(6)
+      visible: true
+
+      // Idle: just the tomato, dimmed.
+      Text {
+        id: idleEmoji
+        anchors.verticalCenter: parent.verticalCenter
+        visible: !root.timerService || root.timerService.stopped
+        text: root.phaseIcon
+        color: root.idleColor
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.body + 2
+        opacity: 0.6
+      }
+
+      // Running/paused: countdown ring + remaining time.
+      CircularProgress {
+        id: ring
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.timerService && !root.timerService.stopped
+        width: Style.bar.iconCanvas
+        height: Style.bar.iconCanvas
+        progress: root.progress
+        trackColor: Color.muted
+        fillColor: root.stateColor
+        strokeWidth: Math.max(2, Style.spaceReal(2))
+      }
+
+      Text {
+        id: timeText
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.timerService && !root.timerService.stopped
+        text: root.timerService
+          ? (root.timerService.paused
+              ? root.timerService.remainingText + " ⏸"
+              : root.timerService.remainingText)
+          : ""
+        color: root.stateColor
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.caption
+        font.bold: true
       }
     }
   }
