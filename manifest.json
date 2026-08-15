@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.punkpeye.waybar-pomodoro",
+  "name": "Waybar Pomodoro",
+  "version": "1.0.0",
+  "author": "punkpeye (ported from waybar-pomodoro)",
+  "license": "MIT",
+  "description": "A classic Pomodoro timer for the Omarchy bar, ported from waybar-pomodoro: 25/5/15 minutes, auto long break after 4 pomodoros, pause, skip, and sound notifications.",
+  "kinds": ["service", "bar-widget"],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Pomodoro",
+    "description": "Classic 25/5/15 Pomodoro timer with pause, skip, and long break after four pomodoros.",
+    "category": "Time",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "workMinutes": 25,
+      "shortBreakMinutes": 5,
+      "longBreakMinutes": 15,
+      "pomodorosUntilLong": 4
+    },
+    "schema": [
+      {
+        "key": "workMinutes",
+        "type": "integer",
+        "label": "Work duration (minutes)",
+        "min": 1,
+        "max": 120,
+        "step": 1,
+        "defaultValue": 25
+      },
+      {
+        "key": "shortBreakMinutes",
+        "type": "integer",
+        "label": "Short break (minutes)",
+        "min": 1,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 5
+      },
+      {
+        "key": "longBreakMinutes",
+        "type": "integer",
+        "label": "Long break (minutes)",
+        "min": 1,
+        "max": 120,
+        "step": 1,
+        "defaultValue": 15
+      },
+      {
+        "key": "pomodorosUntilLong",
+        "type": "integer",
+        "label": "Work phases before a long break",
+        "min": 1,
+        "max": 12,
+        "step": 1,
+        "defaultValue": 4
+      }
+    ]
+  }
+}
